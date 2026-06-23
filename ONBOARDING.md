@@ -37,44 +37,29 @@ Then in WP admin → **Plugins → Add New → Upload Plugin** → choose the zi
 
 (If you have SSH/WP-CLI to the site instead: `cd server && python3 deploy.py <slug>`.)
 
-After activating you'll see an **MCP WPBakery** item in the WP admin sidebar — a
-status page confirming the plugin is active and WPBakery is detected.
+After activating you'll see an **MCP WPBakery** item in the WP admin sidebar.
 
-### 3. Create an Application Password
+### 3. Generate the connection prompt (one click)
 
-WP admin → **Users → Profile → Application Passwords** → add one (admin/editor
-user). Copy the generated password (shown once).
+WP admin → **MCP WPBakery** → set a **client slug** (a short label, e.g. `vista`)
+→ **Generate Application Password & prompt**.
 
-### 4. Add a client config
+The page creates an Application Password and gives you a **ready-to-paste prompt**
+containing everything the agent needs — site URL, username, password, slug, and
+endpoint. Click **Copy prompt**.
 
-```bash
-cp clients/example.json clients/<slug>.json
-```
+### 4. Paste it to Claude
 
-Fill in:
+Paste that prompt into Claude Code (with the `wpbakery` MCP running). The agent
+writes `clients/<slug>.json` for you and runs `wpbakery_ping` to confirm. Done —
+no manual config, no copy-pasting credentials around.
 
-```json
-{
-  "base_url": "https://thesite.com",
-  "wp_transport": "rest",
-  "wp_rest_user": "your-wp-username",
-  "wp_rest_app_password": "xxxx xxxx xxxx xxxx xxxx xxxx"
-}
-```
+> Manual alternative: `cp clients/example.json clients/<slug>.json`, fill in
+> `base_url` / `wp_rest_user` / `wp_rest_app_password`, then
+> `python3 -c "from mcp_wpbakery import transport as t; print(t.ping('<slug>'))"`.
+> (Secrets stay local — `clients/*.json` is git-ignored.)
 
-`<slug>` is the short name you'll use in prompts (e.g. `vista`). Secrets stay
-local — `clients/*.json` is git-ignored. You can instead set
-`WPBAKERY_<SLUG>_USER` / `WPBAKERY_<SLUG>_APP_PW` env vars.
-
-### 5. Test
-
-```bash
-cd server
-python3 -c "from mcp_wpbakery import transport as t; print(t.ping('<slug>'))"
-```
-
-Expect plugin version + `vc_active: True`. Restart Claude Code so the `wpbakery_*`
-tools load, and you're ready.
+Restart Claude Code after first install so the `wpbakery_*` tools load.
 
 ---
 

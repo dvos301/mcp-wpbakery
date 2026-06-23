@@ -1,10 +1,12 @@
 <?php
 /**
- * MCP WPBakery — admin status page.
+ * MCP WPBakery — admin status + connect page.
  *
- * The bridge is headless (REST + WP-CLI), so this page exists only to give a
- * visual confirmation that the plugin is active, that WPBakery is detected,
- * how many vc_map elements it can see, and the REST base URL + setup steps.
+ * The bridge is headless (REST + WP-CLI). This page (a) confirms the plugin is
+ * active and WPBakery is detected, and (b) lets the user generate an Application
+ * Password in one click and copy a complete, paste-ready prompt that gives an AI
+ * agent everything it needs to connect (site URL, username, password, slug,
+ * endpoint).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -29,11 +31,57 @@ class MCP_WPBakery_Admin {
 		);
 	}
 
+	/** A sensible default client slug from the site domain. */
+	private function default_slug() {
+		$host = wp_parse_url( home_url(), PHP_URL_HOST );
+		$host = preg_replace( '/^www\./', '', (string) $host );
+		$first = explode( '.', $host )[0];
+		return sanitize_key( $first ) ?: 'site';
+	}
+
+	private function handle_generate() {
+		if ( empty( $_POST['mcp_generate'] ) || ! check_admin_referer( 'mcp_wpb_gen' ) ) {
+			return null;
+		}
+		$user = wp_get_current_user();
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return array( 'error' => 'You need administrator access to generate an Application Password.' );
+		}
+		if ( function_exists( 'wp_is_application_passwords_available_for_user' )
+			&& ! wp_is_application_passwords_available_for_user( $user ) ) {
+			return array( 'error' => 'Application Passwords are not available for your account. They require HTTPS and must be enabled for this site/user.' );
+		}
+		if ( ! class_exists( 'WP_Application_Passwords' ) ) {
+			return array( 'error' => 'This WordPress version does not support Application Passwords (needs 5.6+).' );
+		}
+
+		$slug = sanitize_key( wp_unslash( $_POST['mcp_slug'] ?? '' ) );
+		if ( '' === $slug ) {
+			$slug = $this->default_slug();
+		}
+		$created = WP_Application_Passwords::create_new_application_password(
+			$user->ID,
+			array( 'name' => 'MCP WPBakery (' . gmdate( 'Y-m-d H:i' ) . ' UTC)' )
+		);
+		if ( is_wp_error( $created ) ) {
+			return array( 'error' => $created->get_error_message() );
+		}
+		return array(
+			'slug' => $slug,
+			'user' => $user->user_login,
+			'pw'   => WP_Application_Passwords::chunk_password( $created[0] ),
+		);
+	}
+
 	public function render() {
 		$core      = MCP_WPBakery_Core::instance();
 		$vc_active = $core->is_vc_active();
 		$vc_ver    = $core->vc_version();
 		$rest_base = rest_url( MCP_WPBakery_REST::NS );
+		$base_url  = untrailingslashit( home_url() );
+		$slug      = $this->default_slug();
+
+		$gen = $this->handle_generate();
 
 		$el_count = null;
 		$el_error = '';
@@ -44,74 +92,105 @@ class MCP_WPBakery_Admin {
 				$el_error = $e->getMessage();
 			}
 		}
-
-		$pw_url = admin_url( 'profile.php#application-passwords-section' );
 		?>
 		<div class="wrap">
 			<h1>MCP WPBakery Bridge</h1>
 			<p>Headless bridge that lets an AI agent (Claude) read this site's
-			WPBakery element registry and build native, editable elements.
-			There is no editor here &mdash; it is driven over REST and WP-CLI.</p>
+			WPBakery elements and build native, editable ones. There is no editor
+			here &mdash; it is driven over REST and WP-CLI.</p>
 
 			<h2>Status</h2>
-			<table class="widefat striped" style="max-width:760px">
+			<table class="widefat striped" style="max-width:780px">
 				<tbody>
-					<tr>
-						<td style="width:240px"><strong>Plugin</strong></td>
-						<td>Active &mdash; v<?php echo esc_html( MCP_WPBAKERY_VERSION ); ?></td>
-					</tr>
-					<tr>
-						<td><strong>WPBakery (js_composer)</strong></td>
-						<td>
-							<?php if ( $vc_active ) : ?>
-								<span style="color:#137333">&#10003; Detected<?php echo $vc_ver ? ' &mdash; v' . esc_html( $vc_ver ) : ''; ?></span>
-							<?php else : ?>
-								<span style="color:#b32d2e">&#10007; Not active &mdash; activate WPBakery Page Builder.</span>
-							<?php endif; ?>
-						</td>
-					</tr>
-					<tr>
-						<td><strong>Elements visible (vc_map)</strong></td>
-						<td>
-							<?php
+					<tr><td style="width:240px"><strong>Plugin</strong></td>
+						<td>Active &mdash; v<?php echo esc_html( MCP_WPBAKERY_VERSION ); ?></td></tr>
+					<tr><td><strong>WPBakery (js_composer)</strong></td>
+						<td><?php echo $vc_active
+							? '<span style="color:#137333">&#10003; Detected' . ( $vc_ver ? ' &mdash; v' . esc_html( $vc_ver ) : '' ) . '</span>'
+							: '<span style="color:#b32d2e">&#10007; Not active</span>'; ?></td></tr>
+					<tr><td><strong>Elements visible (vc_map)</strong></td>
+						<td><?php
 							if ( null !== $el_count ) {
-								echo esc_html( $el_count );
-								echo ' <span style="color:#646970">in this admin context. The agent connects over REST/WP-CLI (front-end context), which typically resolves more.</span>';
+								echo esc_html( $el_count ) . ' <span style="color:#646970">in this admin context; REST/WP-CLI (front-end) typically resolves more.</span>';
 							} elseif ( $el_error ) {
 								echo '<span style="color:#b32d2e">' . esc_html( $el_error ) . '</span>';
-							} else {
-								echo '&mdash;';
-							}
-							?>
-						</td>
-					</tr>
-					<tr>
-						<td><strong>REST base URL</strong></td>
-						<td><code><?php echo esc_html( $rest_base ); ?></code></td>
-					</tr>
-					<tr>
-						<td><strong>Your account can edit pages</strong></td>
-						<td><?php echo current_user_can( 'edit_posts' ) ? '&#10003; yes' : '&#10007; no'; ?></td>
-					</tr>
+							} else { echo '&mdash;'; }
+						?></td></tr>
+					<tr><td><strong>REST endpoint</strong></td>
+						<td><code><?php echo esc_html( $rest_base ); ?></code></td></tr>
 				</tbody>
 			</table>
 
-			<h2>Connect the MCP server (REST)</h2>
-			<ol>
-				<li>Create an Application Password:
-					<a href="<?php echo esc_url( $pw_url ); ?>">Users &rarr; Profile &rarr; Application Passwords</a>.</li>
-				<li>Give the username + generated password to the MCP server, e.g.:
-					<pre style="background:#f6f7f7;padding:10px;max-width:760px;overflow:auto">export WPBAKERY_<?php echo esc_html( strtoupper( 'vista' ) ); ?>_USER="<?php echo esc_html( wp_get_current_user()->user_login ); ?>"
-export WPBAKERY_<?php echo esc_html( strtoupper( 'vista' ) ); ?>_APP_PW="xxxx xxxx xxxx xxxx xxxx xxxx"</pre>
-					(Replace <code>VISTA</code> with the client slug if different.)</li>
-				<li>The agent then calls <code>wpbakery_ping</code> against the
-					<code><?php echo esc_html( $rest_base ); ?></code> endpoint.</li>
-			</ol>
+			<h2>Connect an AI agent</h2>
 
-			<?php if ( $vc_active && null !== $el_count ) : ?>
-				<p style="color:#137333"><strong>&#10003; Ready.</strong> The bridge can see
-				<?php echo esc_html( $el_count ); ?> WPBakery elements and is reachable over REST.</p>
+			<?php if ( $gen && empty( $gen['error'] ) ) :
+				$cfg_json = wp_json_encode(
+					array(
+						'base_url'             => $base_url,
+						'wp_transport'         => 'rest',
+						'wp_rest_user'         => $gen['user'],
+						'wp_rest_app_password' => $gen['pw'],
+					),
+					JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+				);
+				$prompt = "Set up the wpbakery MCP for this WordPress site.\n\n"
+					. "Create a client config file clients/{$gen['slug']}.json in the mcp-wpbakery repo with exactly this content:\n\n"
+					. $cfg_json . "\n\n"
+					. "Then run wpbakery_ping with client \"{$gen['slug']}\" to confirm it connects, and tell me how many WPBakery elements it can see.";
+				?>
+				<div class="notice notice-success" style="padding:12px 14px;max-width:820px">
+					<p style="margin-top:0"><strong>&#10003; Application Password created</strong>
+					(named &ldquo;MCP WPBakery&rdquo; &mdash; revoke anytime under your profile).
+					Copy the prompt below and paste it to your AI agent. It contains the password
+					and is shown <strong>once</strong>.</p>
+
+					<p><strong>Paste this to your AI agent:</strong>
+						<button type="button" class="button button-primary mcp-copy" data-target="mcp-prompt">Copy prompt</button></p>
+					<textarea id="mcp-prompt" readonly rows="11"
+						style="width:100%;font-family:monospace;font-size:12px"><?php echo esc_textarea( $prompt ); ?></textarea>
+
+					<p style="margin-bottom:6px"><strong>Or just the config</strong> (<code>clients/<?php echo esc_html( $gen['slug'] ); ?>.json</code>):
+						<button type="button" class="button mcp-copy" data-target="mcp-cfg">Copy JSON</button></p>
+					<textarea id="mcp-cfg" readonly rows="6"
+						style="width:100%;font-family:monospace;font-size:12px"><?php echo esc_textarea( $cfg_json ); ?></textarea>
+				</div>
+				<script>
+				document.querySelectorAll('.mcp-copy').forEach(function(btn){
+					btn.addEventListener('click',function(){
+						var t=document.getElementById(btn.dataset.target);
+						t.select(); t.setSelectionRange(0,99999);
+						navigator.clipboard.writeText(t.value);
+						var o=btn.textContent; btn.textContent='Copied!';
+						setTimeout(function(){btn.textContent=o;},1500);
+					});
+				});
+				</script>
+			<?php else : ?>
+				<?php if ( $gen && ! empty( $gen['error'] ) ) : ?>
+					<div class="notice notice-error"><p><?php echo esc_html( $gen['error'] ); ?></p></div>
+				<?php endif; ?>
+				<p>Generate an Application Password and a ready-to-paste setup prompt for your AI agent.
+				It bundles the site URL, your username, the password, the client slug, and the endpoint
+				&mdash; so the agent has full context.</p>
+				<form method="post">
+					<?php wp_nonce_field( 'mcp_wpb_gen' ); ?>
+					<table class="form-table" style="max-width:620px"><tbody>
+						<tr>
+							<th scope="row"><label for="mcp_slug">Client slug</label></th>
+							<td><input type="text" id="mcp_slug" name="mcp_slug" value="<?php echo esc_attr( $slug ); ?>" class="regular-text">
+								<p class="description">Short label the agent uses for this site (e.g. <code><?php echo esc_html( $slug ); ?></code>).</p></td>
+						</tr>
+					</tbody></table>
+					<?php if ( ! current_user_can( 'manage_options' ) ) : ?>
+						<p><em>Ask an administrator to generate the Application Password.</em></p>
+					<?php else : ?>
+						<p><button type="submit" name="mcp_generate" value="1" class="button button-primary">Generate Application Password &amp; prompt</button></p>
+					<?php endif; ?>
+				</form>
 			<?php endif; ?>
+
+			<p style="color:#646970;max-width:820px">The agent also needs the MCP server installed on its machine
+			(<code>git clone</code> the repo &rarr; <code>./install.sh</code>). See the repo's ONBOARDING guide.</p>
 		</div>
 		<?php
 	}
