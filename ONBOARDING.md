@@ -28,8 +28,12 @@ the `wpbakery` MCP server with Claude Code.
 
 ### 2. Install the plugin on the WordPress site (once per site)
 
-WP admin → **Plugins → Add New → Upload Plugin** → upload
-`dist/mcp-wpbakery.zip` → **Activate**.
+Download the plugin zip from the latest release:
+**https://github.com/dvos301/mcp-wpbakery/releases/latest** (file: `mcp-wpbakery.zip`)
+— or build it locally with `./install.sh` (creates `dist/mcp-wpbakery.zip`).
+
+Then in WP admin → **Plugins → Add New → Upload Plugin** → choose the zip →
+**Activate**.
 
 (If you have SSH/WP-CLI to the site instead: `cd server && python3 deploy.py <slug>`.)
 
