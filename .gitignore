@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Build artifacts
+dist/
+
+# Secrets: client configs hold app passwords — never commit them.
+clients/*.json
+!clients/example.json
+
+# Scratch / one-offs
+server/_*.py
+*.log
+.DS_Store

@@ -1,0 +1,12 @@
+{
+  "base_url": "https://example.com",
+  "wp_transport": "rest",
+  "wp_rest_user": "your-wp-username",
+  "wp_rest_app_password": "xxxx xxxx xxxx xxxx xxxx xxxx",
+
+  "_ssh_optional": "only if you use the SSH/WP-CLI transport instead of REST",
+  "server_ip": "",
+  "ssh_user": "",
+  "wp_app_slug": "",
+  "ssh_key": "~/.ssh/id_ed25519"
+}
