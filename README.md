@@ -7,6 +7,26 @@ An MCP server that lets an AI agent (Claude Code) read a WordPress site's live
 Open any page it writes in the WPBakery editor and every row, column, and
 element is editable exactly as if a human dragged it in.
 
+---
+
+## ⚠️ Installing the WordPress plugin — use the Release, not "Download ZIP"
+
+The WordPress plugin lives in **[Releases](https://github.com/dvos301/mcp-wpbakery/releases/latest)**.
+Download **`mcp-wpbakery.zip`** from the latest release and install it via
+WP admin → Plugins → Add New → Upload Plugin → Activate.
+
+> **Do NOT** use the green **Code → Download ZIP** button for the WordPress
+> install. That downloads the whole source repo (`server/`, `clients/`,
+> `wp-plugin/`, …) — WordPress will reject it with *"No valid plugins were
+> found."* Use it only for cloning/development.
+
+| You want to… | Get this |
+|---|---|
+| Install the plugin on a WP site | **Releases → `mcp-wpbakery.zip`** |
+| Set up the MCP server / develop | Clone the repo (or green Code → Download ZIP) + `./install.sh` |
+
+---
+
 ## How it works
 
 ```
