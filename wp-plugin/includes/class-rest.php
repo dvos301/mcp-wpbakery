@@ -95,6 +95,60 @@ class MCP_WPBakery_REST {
 		);
 		register_rest_route(
 			self::NS,
+			'/posts/(?P<id>\d+)/preview',
+			array(
+				'methods'             => 'GET',
+				'permission_callback' => $read,
+				'callback'            => array( $this, 'render_preview' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/posts/(?P<id>\d+)/status',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => $write,
+				'callback'            => array( $this, 'set_status' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/posts/(?P<id>\d+)/meta',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => $write,
+				'callback'            => array( $this, 'set_meta' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/posts/(?P<id>\d+)/replace',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => $write,
+				'callback'            => array( $this, 'replace_in_content' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/posts/(?P<id>\d+)/purge',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => $write,
+				'callback'            => array( $this, 'purge' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
+			'/pages',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => $write,
+				'callback'            => array( $this, 'create_page' ),
+			)
+		);
+		register_rest_route(
+			self::NS,
 			'/build',
 			array(
 				'methods'             => 'POST',
@@ -158,9 +212,10 @@ class MCP_WPBakery_REST {
 		);
 	}
 
-	public function elements() {
+	public function elements( $req ) {
 		try {
-			return $this->ok( $this->core()->get_elements() );
+			$full = $req && $req->get_param( 'full' );
+			return $this->ok( $this->core()->get_elements( ! $full ) );
 		} catch ( Throwable $e ) {
 			return $this->fail( $e->getMessage() );
 		}
@@ -221,7 +276,92 @@ class MCP_WPBakery_REST {
 			return $this->fail( 'Missing "css".' );
 		}
 		try {
-			return $this->ok( array( 'page_css' => $this->core()->set_page_css( (int) $req['id'], (string) $body['css'] ) ) );
+			$css = (string) $body['css'];
+			$id  = (int) $req['id'];
+			$out = ! empty( $body['append'] )
+				? $this->core()->append_page_css( $id, $css )
+				: $this->core()->set_page_css( $id, $css );
+			return $this->ok( array( 'page_css' => $out ) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function render_preview( $req ) {
+		try {
+			return $this->ok( $this->core()->render_preview( (int) $req['id'] ) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function create_page( $req ) {
+		$body = $req->get_json_params();
+		if ( empty( $body['title'] ) ) {
+			return $this->fail( 'Missing "title".' );
+		}
+		try {
+			return $this->ok( $this->core()->create_page(
+				(string) $body['title'],
+				isset( $body['slug'] ) ? (string) $body['slug'] : '',
+				isset( $body['status'] ) ? (string) $body['status'] : 'draft'
+			) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function set_status( $req ) {
+		$body = $req->get_json_params();
+		if ( empty( $body['status'] ) ) {
+			return $this->fail( 'Missing "status".' );
+		}
+		try {
+			return $this->ok( $this->core()->set_status( (int) $req['id'], (string) $body['status'] ) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function set_meta( $req ) {
+		$body = $req->get_json_params();
+		if ( ! isset( $body['key'] ) || ! array_key_exists( 'value', (array) $body ) ) {
+			return $this->fail( 'Missing "key" or "value".' );
+		}
+		try {
+			$value = $body['value'];
+			$is_json = ! empty( $body['is_json'] );
+			// If a JSON value was sent as a real array/object, store it directly.
+			if ( is_array( $value ) ) {
+				$value   = wp_json_encode( $value );
+				$is_json = true;
+			}
+			return $this->ok( $this->core()->set_post_meta( (int) $req['id'], (string) $body['key'], (string) $value, $is_json ) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function replace_in_content( $req ) {
+		$body = $req->get_json_params();
+		if ( ! isset( $body['find'] ) || ! isset( $body['replace'] ) ) {
+			return $this->fail( 'Missing "find" or "replace".' );
+		}
+		try {
+			return $this->ok( $this->core()->replace_in_content(
+				(int) $req['id'],
+				(string) $body['find'],
+				(string) $body['replace'],
+				isset( $body['expected'] ) ? (int) $body['expected'] : null
+			) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function purge( $req ) {
+		try {
+			return $this->ok( array( 'caches_purged' => $this->core()->purge_caches( (int) $req['id'] ) ) );
 		} catch ( Throwable $e ) {
 			return $this->fail( $e->getMessage() );
 		}

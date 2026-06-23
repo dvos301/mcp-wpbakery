@@ -25,36 +25,48 @@ from . import transport as t
 
 INSTRUCTIONS = """\
 Build and edit pages on WordPress sites running the WPBakery Page Builder.
-The whole point is to produce NATIVE, editable WPBakery elements. Follow these
-rules or the output defeats the purpose:
+The whole point is NATIVE, editable elements. Follow these rules:
 
-1. NATIVE ELEMENTS ONLY. Build content from real WPBakery elements (vc_row,
-   vc_column, vc_tta_accordion, vc_custom_heading, vc_btn, vc_single_image, ...).
-   NEVER lay out content with a vc_raw_html block — in the builder that is one
-   opaque element the user cannot edit, reorder, or restyle. A Raw HTML block is
-   almost always the wrong answer.
+1. NATIVE ELEMENTS ONLY. Build from real WPBakery elements (vc_row, vc_column,
+   vc_tta_accordion, vc_custom_heading, vc_single_image, ...). NEVER lay out
+   content with a vc_raw_html block — it is one opaque, uneditable element.
 
-2. DISCOVER FIRST. Call wpbakery_list_elements, then wpbakery_element_schema for
-   the exact params of each element you'll use. Themes/add-ons register custom
-   elements (e.g. Vista's vb_* elements) — prefer the site's real elements.
+2. PREFER THE THEME'S OWN ELEMENTS. When a theme ships its own element, use it
+   over the WPBakery core twin — many themes only render their own. On Impreza /
+   us-core: use `us_btn` (NOT `vc_btn` — it renders as literal "[vc_btn]" text),
+   `us_iconbox`, `us_image`. Check wpbakery_list_elements for `us_*`/theme tags.
 
-3. STYLE VIA PAGE CSS, NOT HTML. To skin native elements, give them an el_class
-   and put the CSS in the page's Custom CSS with wpbakery_set_page_css (or the
-   page_css arg of wpbakery_update_page). Never embed <style> through a Raw HTML
-   element. Page CSS is the native WPBakery home for page-scoped styling and
-   keeps every element editable.
+3. DISCOVER FIRST. wpbakery_list_elements (summary) → wpbakery_element_schema
+   for the exact params of each element you'll use.
 
-4. THEMES RE-RENDER ELEMENTS. Many themes output their own markup (e.g. Impreza
-   renders accordions as `.w-tabs` / `.w-tabs-section-header`, not `.vc_tta-*`).
-   Fetch the live rendered HTML to find the real classes, target those, and use
-   !important to win over theme CSS.
+4. STYLE VIA PAGE CSS, NOT HTML, NOT design-options. Give elements an el_class
+   and style them with wpbakery_set_page_css / wpbakery_append_page_css (or
+   update_page's page_css). Do NOT use the WPBakery `css=` design-options
+   attribute for section backgrounds/padding — themes like Impreza ignore it.
+   Page CSS now writes ALL theme CSS keys and busts caches automatically.
 
-5. SAFE WRITES. Always wpbakery_validate before writing. Build on a DRAFT page,
-   review it, then move to the live page. Every write auto-saves a revision.
+5. THEMES RE-RENDER ELEMENTS. Impreza renders accordions as `.w-tabs` /
+   `.w-tabs-section-header`, not `.vc_tta-*`. Use wpbakery_render_preview to see
+   the REAL rendered HTML and class names; target those with !important.
 
-Typical flow: ping -> list_elements/element_schema -> get_page (read current) ->
-build native shortcodes -> validate -> update_page (draft) -> set_page_css to
-skin -> review -> publish.
+6. ALWAYS PREVIEW AFTER WRITING. content.rendered from a plain read lies — call
+   wpbakery_render_preview(post_id). It returns the true front-end HTML, a list
+   of `unrendered_shortcodes` (elements the theme dropped — fix those), and a
+   public `preview_url` you can screenshot (drafts included).
+
+7. SAFE WRITES. wpbakery_validate before writing. Build on a DRAFT
+   (wpbakery_create_page status=draft) → render_preview → fix → publish with
+   wpbakery_set_status. Every write saves a revision. Set noindex / SEO meta via
+   wpbakery_set_post_meta (e.g. rank_math_robots = ["noindex","nofollow"]).
+
+8. ITERATE CHEAPLY. Don't resend the whole page to change one thing — use
+   wpbakery_append_page_css for CSS and wpbakery_replace_in_content for surgical
+   content edits.
+
+Typical flow: ping -> list_elements/element_schema -> create_page(draft) ->
+build native shortcodes -> validate -> update_page -> set_page_css ->
+render_preview (screenshot preview_url, check unrendered_shortcodes) -> fix ->
+set_status(publish).
 """
 
 mcp = FastMCP("wpbakery", instructions=INSTRUCTIONS)
@@ -250,6 +262,132 @@ def wpbakery_set_page_css(client: str, post_id: int, css: str) -> str:
         css: The CSS to store for this page.
     """
     return _wrap(t.set_page_css, client, post_id, css)
+
+
+@mcp.tool()
+def wpbakery_append_page_css(client: str, post_id: int, css: str) -> str:
+    """Append a CSS rule to a page's custom CSS without resending the whole sheet.
+    Use this to iterate on styling cheaply. Writes all theme CSS keys + busts caches.
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+        css: The CSS rule(s) to append.
+    """
+    return _wrap(t.append_page_css, client, post_id, css)
+
+
+@mcp.tool()
+def wpbakery_render_preview(client: str, post_id: int) -> str:
+    """Render a page through the front-end so the theme + content-elements actually
+    run — the ONLY reliable way to see what will appear (drafts included). ALWAYS
+    call this after writing.
+
+    Returns:
+      - preview_url: a public, tokenized URL (valid ~10 min) you can fetch (plain
+        GET, no auth) or screenshot — even for a draft. The true themed render.
+      - unrendered_shortcodes: registered elements the theme did NOT render (e.g.
+        ["vc_btn"] on Impreza) — replace these with theme-native equivalents.
+        Computed from the real front-end HTML (render_source="loopback").
+      - rendered_excerpt / html_bytes / rendered_truncated: a capped peek at the
+        rendered HTML (fetch preview_url for the full page).
+      - render_source: "loopback" (real front-end) or "filter" (fallback).
+      - page_css: the page's current custom CSS.
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+    """
+    return _wrap(t.render_preview, client, post_id)
+
+
+@mcp.tool()
+def wpbakery_create_page(
+    client: str,
+    title: str,
+    slug: str = "",
+    status: str = "draft",
+) -> str:
+    """Create a new page (draft by default) and return its id, edit link, and URL.
+    Build on a draft, preview it, then publish with wpbakery_set_status.
+
+    Args:
+        client: SEO toolkit client slug.
+        title: Page title.
+        slug: Optional URL slug (auto from title if omitted).
+        status: draft | publish | pending | private (default draft).
+    """
+    return _wrap(t.create_page, client, title, slug, status)
+
+
+@mcp.tool()
+def wpbakery_set_status(client: str, post_id: int, status: str) -> str:
+    """Change a page's status (publish a draft, unpublish, etc.). Busts caches.
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+        status: publish | draft | pending | private | future.
+    """
+    return _wrap(t.set_status, client, post_id, status)
+
+
+@mcp.tool()
+def wpbakery_set_post_meta(
+    client: str,
+    post_id: int,
+    key: str,
+    value: str,
+    is_json: bool = False,
+) -> str:
+    """Set a post meta value through WordPress (so caches invalidate). Use for SEO
+    and indexing, e.g. Rank Math title/description/robots.
+
+    For array values (like rank_math_robots), pass a JSON string and is_json=true:
+      key="rank_math_robots", value='["noindex","nofollow"]', is_json=true
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+        key: Meta key (e.g. rank_math_title, rank_math_description, rank_math_robots).
+        value: Meta value (string, or JSON string when is_json=true).
+        is_json: Parse value as JSON (store an array/object) instead of a string.
+    """
+    return _wrap(t.set_post_meta, client, post_id, key, value, is_json)
+
+
+@mcp.tool()
+def wpbakery_replace_in_content(
+    client: str,
+    post_id: int,
+    find: str,
+    replace: str,
+    expected: int | None = None,
+) -> str:
+    """Surgically replace a substring in a page's shortcode content without
+    resending the whole page. Regenerates CSS + busts caches.
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+        find: Exact substring to find (must be present).
+        replace: Replacement string.
+        expected: If set, require exactly this many matches or abort (safety).
+    """
+    return _wrap(t.replace_in_content, client, post_id, find, replace, expected)
+
+
+@mcp.tool()
+def wpbakery_purge_cache(client: str, post_id: int) -> str:
+    """Bust object + page caches for a page (object cache, WP Rocket, LiteSpeed,
+    W3TC, Super Cache, Breeze/Varnish). Writes already auto-purge; use this if a
+    change still looks stale.
+
+    Args:
+        client: SEO toolkit client slug.
+        post_id: WordPress post/page ID.
+    """
+    return _wrap(t.purge_cache, client, post_id)
 
 
 def main() -> None:

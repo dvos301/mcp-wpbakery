@@ -34,6 +34,13 @@ __all__ = [
     "validate",
     "update_post",
     "set_page_css",
+    "append_page_css",
+    "render_preview",
+    "create_page",
+    "set_status",
+    "set_post_meta",
+    "replace_in_content",
+    "purge_cache",
 ]
 
 @lru_cache(maxsize=32)
@@ -105,3 +112,31 @@ def update_post(client, post_id, content, skip_validate=False, page_css=None):
 
 def set_page_css(client, post_id, css):
     return _call(client, "set_page_css", post_id, css)
+
+
+def append_page_css(client, post_id, css):
+    return _call(client, "append_page_css", post_id, css)
+
+
+def render_preview(client, post_id):
+    return _call(client, "render_preview", post_id)
+
+
+def create_page(client, title, slug="", status="draft"):
+    return _call(client, "create_page", title, slug, status)
+
+
+def set_status(client, post_id, status):
+    return _call(client, "set_status", post_id, status)
+
+
+def set_post_meta(client, post_id, key, value, is_json=False):
+    return _call(client, "set_post_meta", post_id, key, value, is_json)
+
+
+def replace_in_content(client, post_id, find, replace, expected=None):
+    return _call(client, "replace_in_content", post_id, find, replace, expected)
+
+
+def purge_cache(client, post_id):
+    return _call(client, "purge_cache", post_id)

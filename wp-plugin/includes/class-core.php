@@ -23,6 +23,14 @@ class MCP_WPBakery_Core {
 	/** @var array<string,bool> tag => is the element enclosing (vs self-closing) */
 	private $enclosing_cache = null;
 
+	/**
+	 * Page-CSS meta keys. WPBakery writes _wpb_post_custom_css, but Impreza's
+	 * USBuilder renders from usb_post_custom_css and legacy VC from
+	 * vc_post_custom_css. We write all three so CSS actually appears regardless
+	 * of which builder/theme renders the page.
+	 */
+	const PAGE_CSS_KEYS = array( '_wpb_post_custom_css', 'usb_post_custom_css', 'vc_post_custom_css' );
+
 	public static function instance() {
 		if ( ! self::$instance ) {
 			self::$instance = new self();
@@ -73,7 +81,7 @@ class MCP_WPBakery_Core {
 	 *
 	 * @return array list of normalized element definitions
 	 */
-	public function get_elements() {
+	public function get_elements( $summary = false ) {
 		$this->require_vc();
 		$this->ensure_mapping();
 
@@ -89,7 +97,7 @@ class MCP_WPBakery_Core {
 			if ( ! is_array( $full ) || empty( $full ) ) {
 				$full = is_array( $settings ) ? $settings : array();
 			}
-			$out[] = $this->normalize_element( $tag, $full );
+			$out[] = $summary ? $this->summarize_element( $tag, $full ) : $this->normalize_element( $tag, $full );
 		}
 
 		// Stable order: by category then name.
@@ -175,6 +183,19 @@ class MCP_WPBakery_Core {
 			'is_enclosing'    => $this->element_is_enclosing( $def ),
 			'default_content' => isset( $def['default_content'] ) ? $def['default_content'] : null,
 			'params'          => $params,
+		);
+	}
+
+	/** Lightweight element record (no params) — keeps list_elements small. */
+	private function summarize_element( $tag, $def ) {
+		return array(
+			'tag'          => $tag,
+			'name'         => isset( $def['name'] ) ? $def['name'] : $tag,
+			'base'         => isset( $def['base'] ) ? $def['base'] : $tag,
+			'category'     => isset( $def['category'] ) ? $def['category'] : '',
+			'is_container' => ! empty( $def['is_container'] ),
+			'is_enclosing' => $this->element_is_enclosing( $def ),
+			'description'  => isset( $def['description'] ) ? wp_strip_all_tags( $def['description'] ) : '',
 		);
 	}
 
@@ -601,8 +622,10 @@ class MCP_WPBakery_Core {
 		$css = $this->regenerate_css( $post_id );
 
 		if ( null !== $page_css ) {
-			$this->set_page_css( $post_id, $page_css );
+			$this->set_page_css( $post_id, $page_css ); // writes all keys + purges
 		}
+
+		$purged = $this->purge_caches( $post_id );
 
 		return array(
 			'id'         => $post_id,
@@ -610,6 +633,7 @@ class MCP_WPBakery_Core {
 			'validation' => $validation,
 			'custom_css' => $css,
 			'page_css'   => (string) get_post_meta( $post_id, '_wpb_post_custom_css', true ),
+			'caches_purged' => $purged,
 			'link'       => get_permalink( $post_id ),
 		);
 	}
@@ -624,8 +648,226 @@ class MCP_WPBakery_Core {
 		if ( ! get_post( $post_id ) ) {
 			throw new Exception( "Post {$post_id} not found." );
 		}
-		update_post_meta( $post_id, '_wpb_post_custom_css', (string) $css );
-		return (string) get_post_meta( $post_id, '_wpb_post_custom_css', true );
+		$css = (string) $css;
+		foreach ( self::PAGE_CSS_KEYS as $key ) {
+			update_post_meta( $post_id, $key, $css );
+		}
+		$this->purge_caches( $post_id );
+		return $css;
+	}
+
+	/** Append a rule to the page CSS (all keys) without resending the whole sheet. */
+	public function append_page_css( $post_id, $rule ) {
+		$current = (string) get_post_meta( $post_id, '_wpb_post_custom_css', true );
+		$new     = rtrim( $current ) . "\n" . trim( (string) $rule ) . "\n";
+		return $this->set_page_css( $post_id, ltrim( $new ) );
+	}
+
+	/**
+	 * Render a post's content through the front-end the_content filter so the
+	 * theme and its content-elements actually run — the only reliable way to see
+	 * what will appear (drafts included). Flags shortcodes that did NOT render
+	 * (e.g. vc_btn on Impreza, which survives as literal "[vc_btn]" text), and
+	 * returns a tokenized public preview URL for screenshots.
+	 */
+	public function render_preview( $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			throw new Exception( "Post {$post_id} not found." );
+		}
+
+		// Tokenized public preview URL (a real themed front-end render, draft-safe).
+		$token = wp_generate_password( 20, false );
+		set_transient( 'mcp_prev_' . $post_id, $token, 600 );
+		$preview_url = add_query_arg(
+			array(
+				'page_id'     => $post_id,
+				'mcp_preview' => $token,
+			),
+			home_url( '/' )
+		);
+
+		// Fetch the real front-end HTML over loopback so what we scan is exactly
+		// what a visitor sees. Fall back to the the_content filter if loopback fails.
+		$source = 'loopback';
+		$html   = '';
+		$resp   = wp_remote_get(
+			$preview_url,
+			array(
+				'timeout'   => 25,
+				'sslverify' => false,
+				'headers'   => array( 'X-MCP-Preview' => '1' ),
+			)
+		);
+		if ( ! is_wp_error( $resp ) && 200 === (int) wp_remote_retrieve_response_code( $resp ) ) {
+			$html = wp_remote_retrieve_body( $resp );
+		}
+		if ( '' === $html ) {
+			$source = 'filter';
+			$html   = apply_filters( 'the_content', $post->post_content );
+		}
+
+		// Registered shortcodes still present as literal text = the theme did not
+		// render them (e.g. vc_btn on Impreza).
+		$unrendered = array();
+		if ( preg_match_all( '/\[([a-z][a-z0-9_]+)(?=[\s\]\/])/i', $html, $m ) ) {
+			$registered = isset( $GLOBALS['shortcode_tags'] ) ? $GLOBALS['shortcode_tags'] : array();
+			foreach ( array_unique( $m[1] ) as $tag ) {
+				if ( isset( $registered[ $tag ] ) ) {
+					$unrendered[] = $tag;
+				}
+			}
+		}
+
+		// Keep the payload token-safe: return a capped excerpt, not the whole page.
+		$excerpt = $html;
+		$truncated = false;
+		if ( strlen( $excerpt ) > 12000 ) {
+			$excerpt   = substr( $excerpt, 0, 12000 );
+			$truncated = true;
+		}
+
+		return array(
+			'post_id'               => $post_id,
+			'status'                => $post->post_status,
+			'preview_url'           => $preview_url,
+			'render_source'         => $source,
+			'unrendered_shortcodes' => array_values( $unrendered ),
+			'html_bytes'            => strlen( $html ),
+			'rendered_excerpt'      => $excerpt,
+			'rendered_truncated'    => $truncated,
+			'page_css'              => (string) get_post_meta( $post_id, '_wpb_post_custom_css', true ),
+		);
+	}
+
+	/** Create a new page/post. */
+	public function create_page( $title, $slug = '', $status = 'draft', $post_type = 'page' ) {
+		$args = array(
+			'post_title'  => (string) $title,
+			'post_type'   => $post_type,
+			'post_status' => $status,
+		);
+		if ( $slug ) {
+			$args['post_name'] = sanitize_title( $slug );
+		}
+		$id = wp_insert_post( $args, true );
+		if ( is_wp_error( $id ) ) {
+			throw new Exception( 'create failed: ' . $id->get_error_message() );
+		}
+		update_post_meta( $id, '_wpb_vc_js_status', 'true' );
+		return array(
+			'id'        => $id,
+			'status'    => get_post_status( $id ),
+			'edit_link' => get_edit_post_link( $id, 'raw' ),
+			'link'      => get_permalink( $id ),
+		);
+	}
+
+	/** Set the publish status of a post (publish/draft/pending/private/future). */
+	public function set_status( $post_id, $status ) {
+		$allowed = array( 'publish', 'draft', 'pending', 'private', 'future' );
+		if ( ! in_array( $status, $allowed, true ) ) {
+			throw new Exception( "Invalid status '{$status}'. Allowed: " . implode( ', ', $allowed ) );
+		}
+		$res = wp_update_post( array( 'ID' => (int) $post_id, 'post_status' => $status ), true );
+		if ( is_wp_error( $res ) ) {
+			throw new Exception( $res->get_error_message() );
+		}
+		$this->purge_caches( $post_id );
+		return array(
+			'id'     => (int) $post_id,
+			'status' => get_post_status( $post_id ),
+			'link'   => get_permalink( $post_id ),
+		);
+	}
+
+	/**
+	 * Set a post meta value through WP (so caches invalidate). Pass $is_json to
+	 * store an array/object value — needed for e.g. rank_math_robots
+	 * (["noindex","nofollow"]).
+	 */
+	public function set_post_meta( $post_id, $key, $value, $is_json = false ) {
+		if ( ! get_post( $post_id ) ) {
+			throw new Exception( "Post {$post_id} not found." );
+		}
+		if ( $is_json ) {
+			$decoded = json_decode( (string) $value, true );
+			$value   = ( null === $decoded && 'null' !== trim( (string) $value ) ) ? $value : $decoded;
+		}
+		update_post_meta( $post_id, (string) $key, $value );
+		$this->purge_caches( $post_id );
+		return array(
+			'id'    => (int) $post_id,
+			'key'   => $key,
+			'value' => get_post_meta( $post_id, $key, true ),
+		);
+	}
+
+	/** Surgical edit: replace a substring in post_content (avoids resending it all). */
+	public function replace_in_content( $post_id, $find, $replace, $expected = null ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			throw new Exception( "Post {$post_id} not found." );
+		}
+		$count   = substr_count( $post->post_content, $find );
+		if ( 0 === $count ) {
+			throw new Exception( 'Find string not present in content.' );
+		}
+		if ( null !== $expected && (int) $expected !== $count ) {
+			throw new Exception( "Find string occurs {$count} times, expected {$expected}. Aborting." );
+		}
+		$new = str_replace( $find, $replace, $post->post_content );
+		$r   = wp_update_post( array( 'ID' => (int) $post_id, 'post_content' => $new ), true );
+		if ( is_wp_error( $r ) ) {
+			throw new Exception( $r->get_error_message() );
+		}
+		$css    = $this->regenerate_css( $post_id );
+		$purged = $this->purge_caches( $post_id );
+		return array(
+			'id'            => (int) $post_id,
+			'replaced'      => $count,
+			'custom_css'    => $css,
+			'caches_purged' => $purged,
+		);
+	}
+
+	/**
+	 * Bust object + page caches for a post so writes appear immediately. Returns
+	 * the list of cache layers it triggered.
+	 */
+	public function purge_caches( $post_id ) {
+		$done = array();
+		if ( function_exists( 'clean_post_cache' ) ) {
+			clean_post_cache( $post_id );
+			$done[] = 'object';
+		}
+		if ( function_exists( 'rocket_clean_post' ) ) {
+			rocket_clean_post( $post_id );
+			$done[] = 'wp-rocket';
+		} elseif ( function_exists( 'rocket_clean_domain' ) ) {
+			rocket_clean_domain();
+			$done[] = 'wp-rocket-domain';
+		}
+		if ( function_exists( 'w3tc_flush_post' ) ) {
+			w3tc_flush_post( $post_id );
+			$done[] = 'w3tc';
+		}
+		if ( function_exists( 'wp_cache_post_change' ) ) {
+			wp_cache_post_change( $post_id );
+			$done[] = 'supercache';
+		}
+		if ( has_action( 'litespeed_purge_post' ) ) {
+			do_action( 'litespeed_purge_post', $post_id );
+			$done[] = 'litespeed';
+		}
+		if ( has_action( 'breeze_clear_all_cache' ) ) {
+			do_action( 'breeze_clear_all_cache' );
+			$done[] = 'breeze';
+		}
+		// Varnish / generic purgers commonly listen on these.
+		do_action( 'clean_post_cache', $post_id, get_post( $post_id ) );
+		do_action( 'mcp_wpbakery_purged', $post_id );
+		return $done;
 	}
 
 	/**

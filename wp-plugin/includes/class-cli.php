@@ -55,7 +55,8 @@ class MCP_WPBakery_CLI_Command {
 					break;
 
 				case 'elements':
-					$data = $core->get_elements();
+					// Summary by default (small); --full includes every param.
+					$data = $core->get_elements( ! isset( $assoc_args['full'] ) );
 					break;
 
 				case 'element':
@@ -133,9 +134,67 @@ class MCP_WPBakery_CLI_Command {
 					$data = array( 'custom_css' => $core->regenerate_css( (int) $this->req_id( $args ) ) );
 					break;
 
+				case 'append-page-css':
+					if ( ! isset( $assoc_args['css'] ) ) {
+						throw new Exception( 'Usage: append-page-css <id> --css=<base64>' );
+					}
+					$data = array( 'page_css' => $core->append_page_css( (int) $this->req_id( $args ), $this->b64( $assoc_args['css'] ) ) );
+					break;
+
+				case 'render-preview':
+					$data = $core->render_preview( (int) $this->req_id( $args ) );
+					break;
+
+				case 'create':
+					if ( empty( $assoc_args['title'] ) ) {
+						throw new Exception( 'Usage: create --title=<base64> [--slug=] [--status=draft]' );
+					}
+					$data = $core->create_page(
+						$this->b64( $assoc_args['title'] ),
+						isset( $assoc_args['slug'] ) ? $assoc_args['slug'] : '',
+						isset( $assoc_args['status'] ) ? $assoc_args['status'] : 'draft'
+					);
+					break;
+
+				case 'set-status':
+					if ( ! isset( $assoc_args['status'] ) ) {
+						throw new Exception( 'Usage: set-status <id> --status=publish|draft|...' );
+					}
+					$data = $core->set_status( (int) $this->req_id( $args ), $assoc_args['status'] );
+					break;
+
+				case 'set-meta':
+					if ( ! isset( $assoc_args['key'] ) || ! isset( $assoc_args['value'] ) ) {
+						throw new Exception( 'Usage: set-meta <id> --key= --value=<base64> [--json]' );
+					}
+					$data = $core->set_post_meta(
+						(int) $this->req_id( $args ),
+						$assoc_args['key'],
+						$this->b64( $assoc_args['value'] ),
+						isset( $assoc_args['json'] )
+					);
+					break;
+
+				case 'replace':
+					if ( ! isset( $assoc_args['find'] ) || ! isset( $assoc_args['replace'] ) ) {
+						throw new Exception( 'Usage: replace <id> --find=<base64> --replace=<base64> [--expected=N]' );
+					}
+					$data = $core->replace_in_content(
+						(int) $this->req_id( $args ),
+						$this->b64( $assoc_args['find'] ),
+						$this->b64( $assoc_args['replace'] ),
+						isset( $assoc_args['expected'] ) ? (int) $assoc_args['expected'] : null
+					);
+					break;
+
+				case 'purge':
+					$data = array( 'caches_purged' => $core->purge_caches( (int) $this->req_id( $args ) ) );
+					break;
+
 				default:
 					throw new Exception(
-						"Unknown subcommand '{$sub}'. Try: ping, elements, element, list, get, structure, build, validate, update, set-page-css, regenerate-css"
+						"Unknown subcommand '{$sub}'. Try: ping, elements, element, list, get, structure, build, validate, "
+						. "update, set-page-css, append-page-css, render-preview, create, set-status, set-meta, replace, purge, regenerate-css"
 					);
 			}
 

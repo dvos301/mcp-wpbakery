@@ -161,3 +161,37 @@ def update_post(cfg, post_id, content, skip_validate=False, page_css=None):
 
 def set_page_css(cfg, post_id, css):
     return _request(cfg, "POST", f"/posts/{int(post_id)}/page-css", {"css": css})
+
+
+def append_page_css(cfg, post_id, css):
+    return _request(cfg, "POST", f"/posts/{int(post_id)}/page-css", {"css": css, "append": True})
+
+
+def render_preview(cfg, post_id):
+    return _request(cfg, "GET", f"/posts/{int(post_id)}/preview")
+
+
+def create_page(cfg, title, slug="", status="draft"):
+    return _request(cfg, "POST", "/pages", {"title": title, "slug": slug, "status": status})
+
+
+def set_status(cfg, post_id, status):
+    return _request(cfg, "POST", f"/posts/{int(post_id)}/status", {"status": status})
+
+
+def set_post_meta(cfg, post_id, key, value, is_json=False):
+    body = {"key": key, "value": value}
+    if is_json:
+        body["is_json"] = True
+    return _request(cfg, "POST", f"/posts/{int(post_id)}/meta", body)
+
+
+def replace_in_content(cfg, post_id, find, replace, expected=None):
+    body = {"find": find, "replace": replace}
+    if expected is not None:
+        body["expected"] = expected
+    return _request(cfg, "POST", f"/posts/{int(post_id)}/replace", body)
+
+
+def purge_cache(cfg, post_id):
+    return _request(cfg, "POST", f"/posts/{int(post_id)}/purge", {})

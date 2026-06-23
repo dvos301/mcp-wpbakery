@@ -168,3 +168,43 @@ def update_post(cfg, post_id, content, skip_validate=False, page_css=None):
 
 def set_page_css(cfg, post_id, css):
     return _invoke(cfg, f"set-page-css {int(post_id)} --css={_b64(css)}")
+
+
+def append_page_css(cfg, post_id, css):
+    return _invoke(cfg, f"append-page-css {int(post_id)} --css={_b64(css)}")
+
+
+def render_preview(cfg, post_id):
+    return _invoke(cfg, f"render-preview {int(post_id)}", timeout=120)
+
+
+def create_page(cfg, title, slug="", status="draft"):
+    args = f"create --title={_b64(title)} --status={re.sub(r'[^a-z]', '', status)}"
+    if slug:
+        args += f" --slug={re.sub(r'[^a-z0-9-]', '', slug.lower())}"
+    return _invoke(cfg, args)
+
+
+def set_status(cfg, post_id, status):
+    return _invoke(cfg, f"set-status {int(post_id)} --status={re.sub(r'[^a-z]', '', status)}")
+
+
+def set_post_meta(cfg, post_id, key, value, is_json=False):
+    if not isinstance(value, str):
+        value = json.dumps(value)
+        is_json = True
+    args = f"set-meta {int(post_id)} --key={re.sub(r'[^a-zA-Z0-9_-]', '', key)} --value={_b64(value)}"
+    if is_json:
+        args += " --json"
+    return _invoke(cfg, args)
+
+
+def replace_in_content(cfg, post_id, find, replace, expected=None):
+    args = f"replace {int(post_id)} --find={_b64(find)} --replace={_b64(replace)}"
+    if expected is not None:
+        args += f" --expected={int(expected)}"
+    return _invoke(cfg, args, timeout=120)
+
+
+def purge_cache(cfg, post_id):
+    return _invoke(cfg, f"purge {int(post_id)}")

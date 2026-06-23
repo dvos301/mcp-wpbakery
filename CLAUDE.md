@@ -8,20 +8,31 @@ follow these rules — they are the whole point of the tool.
 ## Rules for building WPBakery content
 
 1. **Native elements only.** Use real WPBakery elements (`vc_row`, `vc_column`,
-   `vc_tta_accordion`, `vc_custom_heading`, `vc_btn`, `vc_single_image`, …).
+   `vc_tta_accordion`, `vc_custom_heading`, `vc_single_image`, …).
    **Never** lay out content with a `vc_raw_html` block — it becomes one opaque,
    uneditable element in the builder, which defeats the purpose.
-2. **Discover before building.** `wpbakery_list_elements` → `wpbakery_element_schema`
-   for exact params. Use the site's own custom/theme elements when relevant.
-3. **Style via Page CSS, not HTML.** Give elements an `el_class` and put CSS in
-   the page's Custom CSS via `wpbakery_set_page_css` (or `update_page(page_css=…)`).
-   Never embed `<style>` through a Raw HTML element.
-4. **Themes re-render elements.** Impreza/us-core renders accordions as `.w-tabs`
+2. **Prefer the theme's own elements.** When a theme ships its own element, use it
+   over the WPBakery twin — themes often only render their own. On Impreza/us-core
+   use `us_btn` (NOT `vc_btn`, which renders as literal `[vc_btn]` text), `us_iconbox`,
+   `us_image`. Confirm with `wpbakery_render_preview` (see rule 6).
+3. **Discover before building.** `wpbakery_list_elements` (summary) →
+   `wpbakery_element_schema` for exact params. Use the site's custom/theme elements.
+4. **Style via Page CSS — not HTML, not `css=` design-options.** Give elements an
+   `el_class` and style via `wpbakery_set_page_css` / `wpbakery_append_page_css`
+   (or `update_page(page_css=…)`). Impreza ignores the WPBakery `css=` attribute.
+   Page CSS now writes all theme keys (`_wpb_/usb_/vc_post_custom_css`) and busts
+   caches automatically.
+5. **Themes re-render elements.** Impreza/us-core renders accordions as `.w-tabs`
    markup (`.w-tabs-section-header`, `.w-tabs-section-title`, `.w-tabs-section-control`,
-   `.w-tabs-section-content-h`), not `.vc_tta-*`. Fetch the live rendered HTML,
-   target the real classes, and use `!important` to beat theme CSS.
-5. **Safe writes.** Always `wpbakery_validate` first. Build on a **draft**,
-   review, then publish. Every write auto-saves a revision.
+   `.w-tabs-section-content-h`), not `.vc_tta-*`. Use the preview to find real
+   classes; use `!important` to beat theme CSS.
+6. **Always preview after writing.** A plain read's `content.rendered` lies. Call
+   `wpbakery_render_preview` — it returns `unrendered_shortcodes` (elements the
+   theme dropped) and a public `preview_url` you can GET/screenshot (drafts too).
+7. **Safe writes & iteration.** `wpbakery_validate` first. Build on a **draft**
+   (`wpbakery_create_page`) → preview → fix → `wpbakery_set_status` publish. Set
+   SEO/noindex via `wpbakery_set_post_meta`. Iterate cheaply with
+   `wpbakery_append_page_css` and `wpbakery_replace_in_content`. Every write saves a revision.
 
 ## Worked example (the canonical pattern): a shadcn-style FAQ
 
