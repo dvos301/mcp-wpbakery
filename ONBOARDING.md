@@ -18,7 +18,7 @@ There are two parts:
 ### 1. Get the code + run the installer
 
 ```bash
-git clone <repo-url> mcp-wpbakery     # or copy the folder
+git clone https://github.com/dvos301/mcp-wpbakery.git
 cd mcp-wpbakery
 ./install.sh
 ```
