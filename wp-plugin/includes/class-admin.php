@@ -133,16 +133,24 @@ class MCP_WPBakery_Admin {
 					),
 					JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
 				);
-				$prompt = "Set up the wpbakery MCP for this WordPress site.\n\n"
-					. "Create a client config file clients/{$gen['slug']}.json in the mcp-wpbakery repo with exactly this content:\n\n"
+				$slug   = $gen['slug'];
+				$prompt = "Connect the \"wpbakery\" MCP to this WordPress site so you can build and edit WPBakery pages.\n\n"
+					. "HOW IT WORKS: the wpbakery MCP server runs on THIS computer and talks to the site over the WordPress REST API, authenticating with the Application Password below. The plugin is already installed on the site.\n\n"
+					. "STEP 1 - If the wpbakery_* tools are NOT available to you in this session, the MCP server isn't set up on this computer yet. Set it up, then RESTART Claude Code and paste this message again:\n"
+					. "  git clone https://github.com/dvos301/mcp-wpbakery\n"
+					. "  cd mcp-wpbakery && ./install.sh\n\n"
+					. "STEP 2 - Once the wpbakery_* tools ARE available: create the file clients/{$slug}.json inside the mcp-wpbakery repo with exactly this content:\n\n"
 					. $cfg_json . "\n\n"
-					. "Then run wpbakery_ping with client \"{$gen['slug']}\" to confirm it connects, and tell me how many WPBakery elements it can see.";
+					. "Then run wpbakery_ping with client \"{$slug}\" and tell me how many WPBakery elements it can see.";
 				?>
 				<div class="notice notice-success" style="padding:12px 14px;max-width:820px">
 					<p style="margin-top:0"><strong>&#10003; Application Password created</strong>
 					(named &ldquo;MCP WPBakery&rdquo; &mdash; revoke anytime under your profile).
 					Copy the prompt below and paste it to your AI agent. It contains the password
 					and is shown <strong>once</strong>.</p>
+					<p style="margin:0 0 4px"><strong>First time on this computer?</strong> The agent needs the
+					MCP server installed locally (<code>git clone</code> + <code>./install.sh</code>, then restart
+					Claude Code). The prompt below walks you/the agent through that automatically if it's missing.</p>
 
 					<p><strong>Paste this to your AI agent:</strong>
 						<button type="button" class="button button-primary mcp-copy" data-target="mcp-prompt">Copy prompt</button></p>

@@ -50,9 +50,15 @@ endpoint. Click **Copy prompt**.
 
 ### 4. Paste it to Claude
 
-Paste that prompt into Claude Code (with the `wpbakery` MCP running). The agent
-writes `clients/<slug>.json` for you and runs `wpbakery_ping` to confirm. Done —
-no manual config, no copy-pasting credentials around.
+Paste that prompt into Claude Code. If you've done Step 1 (the MCP server is
+installed and Claude Code has been restarted), the agent writes
+`clients/<slug>.json` and runs `wpbakery_ping` to confirm — done.
+
+If the MCP server **isn't** set up on this computer yet, the prompt tells the
+agent to install it first (`git clone … && ./install.sh`), after which you
+restart Claude Code and paste the prompt again. So pasting it is safe even from a
+fresh machine — it self-bootstraps. (The connection to the site is the WordPress
+REST API + the Application Password; the MCP server is just the local bridge.)
 
 > Manual alternative: `cp clients/example.json clients/<slug>.json`, fill in
 > `base_url` / `wp_rest_user` / `wp_rest_app_password`, then
