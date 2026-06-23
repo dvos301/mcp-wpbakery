@@ -77,8 +77,10 @@ right way**. The server ships these rules to the agent, and they matter:
 3. **Style via Page CSS.** To skin native elements, the agent gives them an
    `el_class` and writes the CSS into the page's **Custom CSS** (Page Settings),
    not into an HTML block. Everything stays editable.
-4. **Draft → review → publish.** Work happens on a draft first; every write
-   saves a revision as a backup.
+4. **Draft → preview → publish.** Work happens on a draft first (every write
+   saves a revision). The agent calls `wpbakery_render_preview` to get a public
+   preview URL, screenshots it with `python screenshot.py "<url>" shot.png`, and
+   checks it actually looks right before publishing.
 
 ### Example prompts
 
@@ -91,11 +93,11 @@ right way**. The server ships these rules to the agent, and they matter:
 
 ### What "good" looks like
 
-The canonical flow (this is how the shadcn FAQ was built):
-`ping` → `list_elements` / `element_schema` → `get_page` (read current) →
-build native `vc_tta_accordion` + `vc_tta_section` → `validate` →
-`update_page` (draft) → `set_page_css` to skin (target the theme's real classes
-with `!important`) → review → publish.
+The canonical flow:
+`create_page` (draft) → `list_elements` / `element_schema` → build native
+elements → `validate` → `update_page` → `set_page_css` to skin (target the
+theme's real classes with `!important`) → `render_preview` →
+`screenshot.py "<preview_url>"` and look at it → fix → `set_status` publish.
 
 ---
 

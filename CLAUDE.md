@@ -28,7 +28,11 @@ follow these rules — they are the whole point of the tool.
    classes; use `!important` to beat theme CSS.
 6. **Always preview after writing.** A plain read's `content.rendered` lies. Call
    `wpbakery_render_preview` — it returns `unrendered_shortcodes` (elements the
-   theme dropped) and a public `preview_url` you can GET/screenshot (drafts too).
+   theme dropped) and a public `preview_url` (drafts too). To *see* it: GET the
+   URL for the HTML, and **screenshot it** with `python screenshot.py
+   "<preview_url>" shot.png` (handles the headless-Chrome hangs), then Read the
+   PNG to judge visual alignment with what the user asked for. Long page? add
+   `--height 6500`.
 7. **Safe writes & iteration.** `wpbakery_validate` first. Build on a **draft**
    (`wpbakery_create_page`) → preview → fix → `wpbakery_set_status` publish. Set
    SEO/noindex via `wpbakery_set_post_meta`. Iterate cheaply with
