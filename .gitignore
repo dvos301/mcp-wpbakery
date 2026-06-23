@@ -5,8 +5,10 @@ __pycache__/
 .venv/
 venv/
 
-# Build artifacts
-dist/
+# Build artifacts — ignore the dist dir, but keep the built plugin zip tracked
+# so it's visible/downloadable straight from the repo file tree.
+dist/*
+!dist/mcp-wpbakery.zip
 
 # Secrets: client configs hold app passwords — never commit them.
 clients/*.json
