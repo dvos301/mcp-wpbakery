@@ -9,6 +9,28 @@ element is editable exactly as if a human dragged it in.
 
 ---
 
+## 📐 Build rules (mandatory — auto-loaded into every agent session)
+
+This repo ships **[`WPBAKERY_BUILD_RULES.md`](WPBAKERY_BUILD_RULES.md)** — the
+non-negotiable contract for *how* to build pages: granular native elements, the
+forbidden "cram a whole section into one text block" anti-pattern, the
+element-selection map, attribute value encoding, a self-audit gate, and
+custom-element authoring guidance.
+
+**You don't have to save or wire it up anywhere.** The MCP server reads this
+file at startup and appends it to the server's MCP `instructions`, so it is
+injected into **every** Claude Code session that connects to the `wpbakery_*`
+tools (see `server/mcp_wpbakery/server.py`, which loads the repo-root
+`WPBAKERY_BUILD_RULES.md`). Edit the file → it takes effect on the next session.
+Keep it in the repo root so the server can find it. The agent guide
+[`CLAUDE.md`](CLAUDE.md) also points to it.
+
+> **Agents:** read `WPBAKERY_BUILD_RULES.md` before building or editing any page,
+> and follow it exactly. A page that renders but collapses content into one
+> opaque block is a failure — every distinct piece must be its own editable element.
+
+---
+
 ## ⚠️ Installing the WordPress plugin — use the Release, not "Download ZIP"
 
 The WordPress plugin lives in **[Releases](https://github.com/dvos301/mcp-wpbakery/releases/latest)**.
