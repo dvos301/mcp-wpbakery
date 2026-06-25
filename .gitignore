@@ -18,3 +18,6 @@ clients/*.json
 server/_*.py
 *.log
 .DS_Store
+
+# Fidelity-loop scratch (screenshots, references)
+.loop/

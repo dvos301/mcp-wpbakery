@@ -688,15 +688,25 @@ class MCP_WPBakery_Core {
 		);
 
 		// Fetch the real front-end HTML over loopback so what we scan is exactly
-		// what a visitor sees. Fall back to the the_content filter if loopback fails.
-		$source = 'loopback';
-		$html   = '';
-		$resp   = wp_remote_get(
-			$preview_url,
+		// what a FIRST-TIME (uncached) visitor sees. A query-string buster plus
+		// no-cache headers defeat WP Rocket / Varnish, so shortcodes that only
+		// register when the page is cached (e.g. vc_icon on Impreza) are caught
+		// leaking instead of silently passing. Fall back to the_content if loopback
+		// fails.
+		$source       = 'loopback';
+		$html         = '';
+		$loopback_url = add_query_arg( 'mcp_nocache', wp_generate_password( 8, false ), $preview_url );
+		$resp         = wp_remote_get(
+			$loopback_url,
 			array(
 				'timeout'   => 25,
 				'sslverify' => false,
-				'headers'   => array( 'X-MCP-Preview' => '1' ),
+				'cookies'   => array(),
+				'headers'   => array(
+					'X-MCP-Preview' => '1',
+					'Cache-Control' => 'no-cache',
+					'Pragma'        => 'no-cache',
+				),
 			)
 		);
 		if ( ! is_wp_error( $resp ) && 200 === (int) wp_remote_retrieve_response_code( $resp ) ) {
@@ -763,15 +773,21 @@ class MCP_WPBakery_Core {
 		);
 	}
 
-	/** Set the publish status of a post (publish/draft/pending/private/future). */
+	/** Set the publish status of a post, or 'trash' it (recoverable from Trash). */
 	public function set_status( $post_id, $status ) {
-		$allowed = array( 'publish', 'draft', 'pending', 'private', 'future' );
+		$allowed = array( 'publish', 'draft', 'pending', 'private', 'future', 'trash' );
 		if ( ! in_array( $status, $allowed, true ) ) {
 			throw new Exception( "Invalid status '{$status}'. Allowed: " . implode( ', ', $allowed ) );
 		}
-		$res = wp_update_post( array( 'ID' => (int) $post_id, 'post_status' => $status ), true );
-		if ( is_wp_error( $res ) ) {
-			throw new Exception( $res->get_error_message() );
+		if ( 'trash' === $status ) {
+			if ( ! wp_trash_post( (int) $post_id ) ) {
+				throw new Exception( 'wp_trash_post failed (already trashed, or invalid id).' );
+			}
+		} else {
+			$res = wp_update_post( array( 'ID' => (int) $post_id, 'post_status' => $status ), true );
+			if ( is_wp_error( $res ) ) {
+				throw new Exception( $res->get_error_message() );
+			}
 		}
 		$this->purge_caches( $post_id );
 		return array(

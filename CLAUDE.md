@@ -11,10 +11,16 @@ follow these rules — they are the whole point of the tool.
    `vc_tta_accordion`, `vc_custom_heading`, `vc_single_image`, …).
    **Never** lay out content with a `vc_raw_html` block — it becomes one opaque,
    uneditable element in the builder, which defeats the purpose.
-2. **Prefer the theme's own elements.** When a theme ships its own element, use it
-   over the WPBakery twin — themes often only render their own. On Impreza/us-core
-   use `us_btn` (NOT `vc_btn`, which renders as literal `[vc_btn]` text), `us_iconbox`,
-   `us_image`. Confirm with `wpbakery_render_preview` (see rule 6).
+2. **Watch for leaking elements; use safe defaults.** On Impreza/us-core,
+   `vc_btn` **and `vc_icon`** can render as literal `[vc_btn]`/`[vc_icon]` text
+   (especially uncached). The theme's own `us_btn`/`us_iconbox`/`us_image` render
+   but are **not in `vc_map`** (so `wpbakery_validate` flags them — verify with
+   `render_preview`). Bulletproof, full-control alternatives:
+   - **icons** → a CSS background-SVG (`data:image/svg+xml` in page CSS) on a
+     native element (e.g. a heading `::before`). Pixel-perfect, no font/shortcode
+     dependency.
+   - **buttons** → a styled `<a>` inside a `vc_column_text`, skinned via page CSS.
+     Validate-clean and reliable.
 3. **Discover before building.** `wpbakery_list_elements` (summary) →
    `wpbakery_element_schema` for exact params. Use the site's custom/theme elements.
 4. **Style via Page CSS — not HTML, not `css=` design-options.** Give elements an
@@ -32,7 +38,11 @@ follow these rules — they are the whole point of the tool.
    URL for the HTML, and **screenshot it** with `python screenshot.py
    "<preview_url>" shot.png` (handles the headless-Chrome hangs), then Read the
    PNG to judge visual alignment with what the user asked for. Long page? add
-   `--height 6500`.
+   `--height 6500`. **Preferred when available:** the chrome-devtools MCP —
+   `navigate_page` to the `preview_url`, `evaluate_script` to read the live DOM
+   (find the real classes, diagnose the gap), then `take_screenshot`. Append a
+   cache-buster (`&cb=1`) to the URL — WP Rocket caches the GET. `render_preview`
+   itself now fetches the **uncached** render so leaking shortcodes are caught.
 7. **Safe writes & iteration.** `wpbakery_validate` first. Build on a **draft**
    (`wpbakery_create_page`) → preview → fix → `wpbakery_set_status` publish. Set
    SEO/noindex via `wpbakery_set_post_meta`. Iterate cheaply with
@@ -51,6 +61,58 @@ follow these rules — they are the whole point of the tool.
    recolor the chevron, muted answer text) — `!important` where it fights theme.
 5. Review the draft; iterate styling with `set_page_css` (instant, no redeploy).
 6. When approved, write to the live page.
+
+## Brand tokens (context, not content)
+
+Pull the site's real design language **once** and reuse it so every build is
+on-brand. Store it as a `brand` block in `clients/<slug>.json` (shape in
+`clients/example.json`); inject it as page-CSS variables, e.g.
+`.scope{ --navy:#002a52; --accent:#f07d00; … }`, and reference the vars.
+
+Extract from the live site with the chrome-devtools MCP (`navigate_page` →
+`evaluate_script` over `getComputedStyle`): read `h1/h2/body/p`, a button
+(`.w-btn`), and the container (`.l-section-h`) — family, size, weight,
+line-height, colours, container width, section padding. **Vista's real tokens:**
+Montserrat; navy `#002a52`, accent `#f07d00`, ink `#0e2236`, muted `#9db4cf`;
+container 1185 (max 1280); section padding 96; buttons uppercase, ~3px radius.
+(The live navy is `#002a52`, not the older `#20283a`.)
+
+## Impreza translation cheatsheet (target the theme's real markup)
+
+The theme re-renders your shortcodes — style **its** classes, not WPBakery's:
+
+| You build | Impreza renders | Style this |
+|-----------|-----------------|------------|
+| `vc_row` (el_class `x`) | `section.l-section.x` wrapping `.l-section-h` | bg/clip-path on `.x`; the **container** is `.l-section-h` (force `max-width` + `margin:0 auto` — pages can render full-bleed) |
+| columns | a **CSS grid** `.g-cols.cols_N` | for custom/asymmetric widths set `grid-template-columns` **on `.g-cols`** — NOT column `width` (that shrinks the item *inside* its track) |
+| `vc_tta_accordion` | `.w-tabs` (`.w-tabs-section-header/-title/-control/-content-h`) | those, with `!important` |
+| `vc_custom_heading` | `div.vc_custom_heading.x` (text directly inside; set `use_theme_fonts="yes"`) | `.x` |
+| `vc_column_text` | `.wpb_text_column.x > .wpb_wrapper > p` | `.x`, `.x p` |
+
+Verified to work natively: overlap / `z-index` / `clip-path` angled dividers /
+negative-margin straddling cards. Full-bleed inside the padded container:
+`margin-right: calc((container/2 − pad) − 50vw)` (≈ `calc(562.5px − 50vw)` for
+1185 + 30px pad). Untested gap: a real **editable photo** (needs media upload).
+
+## The fidelity loop (design → native, world-class)
+
+Hit high fidelity with a tight loop, not one big guess:
+
+1. **Target.** Get the design (HTML/CSS, image, or description), render it and
+   screenshot it as the benchmark. Reproduce *that* — never substitute an old
+   block, never fake it with `vc_raw_html`.
+2. **Build native** from real elements + brand tokens → `validate` →
+   `update_page` → `set_page_css`.
+3. **Preview** with `render_preview` (check `unrendered_shortcodes == []`) and
+   **screenshot** the `preview_url`.
+4. **Score on two axes:** (a) *fidelity* — layout, type, spacing, colour vs the
+   target; (b) *nativeness* (hard gate) — no `vc_raw_html`, nothing leaked,
+   validates. Diagnose the gap by inspecting the live DOM.
+5. **Fix and repeat** (CSS-only iterations are instant via `set_page_css`) until
+   it matches or plateaus. On a genuine native ceiling, **report it honestly** —
+   don't cheat with raw HTML to hide it.
+
+Loop scratch (screenshots, references) lives in `.loop/` (git-ignored).
 
 ## Architecture
 

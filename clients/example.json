@@ -4,6 +4,16 @@
   "wp_rest_user": "your-wp-username",
   "wp_rest_app_password": "xxxx xxxx xxxx xxxx xxxx xxxx",
 
+  "_brand_note": "Design tokens extracted once from the live site (see CLAUDE.md -> Brand tokens). The agent injects these as page-CSS variables so every build is on-brand. Optional but recommended.",
+  "brand": {
+    "font_family": "Arial, sans-serif",
+    "container_width": 1200,
+    "container_max": 1280,
+    "section_padding_y": 80,
+    "colors": { "primary": "#111111", "accent": "#0aa66e", "ink": "#0e1620", "muted": "#6b7c91", "line": "rgba(0,0,0,.12)", "light": "#f5f6f8", "white": "#ffffff" },
+    "button": { "bg": "#0aa66e", "color": "#ffffff", "radius": 4, "uppercase": false, "weight": 600 }
+  },
+
   "_ssh_optional": "only if you use the SSH/WP-CLI transport instead of REST",
   "server_ip": "",
   "ssh_user": "",

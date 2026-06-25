@@ -24,49 +24,76 @@ from mcp.server.fastmcp import FastMCP
 from . import transport as t
 
 INSTRUCTIONS = """\
-Build and edit pages on WordPress sites running the WPBakery Page Builder.
-The whole point is NATIVE, editable elements. Follow these rules:
+Build and edit pages on WordPress + WPBakery. The point is NATIVE, editable
+elements that reproduce the REQUESTED design faithfully.
 
-1. NATIVE ELEMENTS ONLY. Build from real WPBakery elements (vc_row, vc_column,
-   vc_tta_accordion, vc_custom_heading, vc_single_image, ...). NEVER lay out
-   content with a vc_raw_html block — it is one opaque, uneditable element.
+FIDELITY FIRST (the whole job):
+- Reproduce the design you were given (HTML/CSS, an image, or a description).
+  Do NOT substitute a remembered/old block for it, and do NOT drop a vc_raw_html
+  block to fake the look — both are cheating. Reuse a pattern only when it truly
+  matches the target, and adapt it.
+- Use the site's real brand. If the client config has a "brand" block, inject
+  those tokens as page-CSS variables (:root/scope) so the build is on-brand.
+  Otherwise extract them once from the live site (fonts, colours, container
+  width) before styling.
 
-2. PREFER THE THEME'S OWN ELEMENTS. When a theme ships its own element, use it
-   over the WPBakery core twin — many themes only render their own. On Impreza /
-   us-core: use `us_btn` (NOT `vc_btn` — it renders as literal "[vc_btn]" text),
-   `us_iconbox`, `us_image`. Check wpbakery_list_elements for `us_*`/theme tags.
+CORE RULES:
+1. NATIVE ELEMENTS ONLY. vc_row / vc_column / vc_row_inner / vc_column_inner /
+   vc_custom_heading (set use_theme_fonts="yes" or it defaults to Abril Fatface)
+   / vc_column_text / vc_tta_accordion ... Never lay out with vc_raw_html.
 
-3. DISCOVER FIRST. wpbakery_list_elements (summary) → wpbakery_element_schema
-   for the exact params of each element you'll use.
+2. SOME ELEMENTS LEAK — USE SAFE DEFAULTS. On Impreza/us-core, vc_btn AND
+   vc_icon can render as literal "[vc_btn]"/"[vc_icon]" text (especially
+   uncached). The theme's us_btn/us_iconbox render but are NOT in vc_map (so
+   validate flags them; verify with render_preview). Bulletproof, full-control
+   alternatives:
+     • icons  -> a CSS background-SVG (data:image/svg+xml in page CSS) on a
+       native element, e.g. a heading ::before. Pixel-perfect, no font/shortcode
+       dependency.
+     • buttons-> a styled <a> inside vc_column_text
+       ([vc_column_text]<a class="btn">Label</a>[/vc_column_text]) skinned via
+       page CSS. Validate-clean and reliable.
 
-4. STYLE VIA PAGE CSS, NOT HTML, NOT design-options. Give elements an el_class
-   and style them with wpbakery_set_page_css / wpbakery_append_page_css (or
-   update_page's page_css). Do NOT use the WPBakery `css=` design-options
-   attribute for section backgrounds/padding — themes like Impreza ignore it.
-   Page CSS now writes ALL theme CSS keys and busts caches automatically.
+3. DISCOVER FIRST. wpbakery_list_elements -> wpbakery_element_schema for params.
 
-5. THEMES RE-RENDER ELEMENTS. Impreza renders accordions as `.w-tabs` /
-   `.w-tabs-section-header`, not `.vc_tta-*`. Use wpbakery_render_preview to see
-   the REAL rendered HTML and class names; target those with !important.
+4. STYLE VIA PAGE CSS — never inline HTML, never the css= design-options attr
+   (Impreza ignores it). Give elements an el_class; style via set_page_css /
+   append_page_css / update_page(page_css). Page CSS writes all theme CSS keys
+   and busts caches automatically.
 
-6. ALWAYS PREVIEW AFTER WRITING. content.rendered from a plain read lies — call
-   wpbakery_render_preview(post_id). It returns the true front-end HTML, a list
-   of `unrendered_shortcodes` (elements the theme dropped — fix those), and a
-   public `preview_url` you can screenshot (drafts included).
+5. THE THEME RE-RENDERS YOUR MARKUP — target ITS classes (render_preview, then
+   inspect the live DOM):
+     • Container is `.l-section-h` (force max-width + margin:0 auto — pages can
+       render full-bleed).
+     • Columns are a CSS GRID `.g-cols.cols_N`. For custom/asymmetric widths set
+       `grid-template-columns` ON `.g-cols` — NOT column `width` (that shrinks the
+       item inside its grid track).
+     • Accordions render as `.w-tabs-*`, not `.vc_tta-*`.
+   Overlap, z-index, clip-path and negative margins all work natively (straddling
+   cards, angled section dividers are fine). Full-bleed inside the padded
+   container: margin-right: calc((container/2 - pad) - 50vw).
 
-7. SAFE WRITES. wpbakery_validate before writing. Build on a DRAFT
-   (wpbakery_create_page status=draft) → render_preview → fix → publish with
-   wpbakery_set_status. Every write saves a revision. Set noindex / SEO meta via
-   wpbakery_set_post_meta (e.g. rank_math_robots = ["noindex","nofollow"]).
+6. ALWAYS render_preview AFTER WRITING, then SCREENSHOT and look — a plain
+   read's content.rendered lies. render_preview returns the true UNCACHED
+   front-end HTML, unrendered_shortcodes (fix any), and a tokenized preview_url.
+   Screenshot it (the site header + page-title band are theme chrome, not your
+   section). Prefer the chrome-devtools MCP: navigate -> evaluate_script to read
+   the live DOM (find the real classes / diagnose the gap) -> take_screenshot.
 
-8. ITERATE CHEAPLY. Don't resend the whole page to change one thing — use
-   wpbakery_append_page_css for CSS and wpbakery_replace_in_content for surgical
-   content edits.
+7. SAFE WRITES. validate -> create_page(draft) -> render_preview -> fix ->
+   set_status(publish | trash). Every write saves a revision. Set noindex via
+   set_post_meta (rank_math_robots = ["noindex","nofollow"]).
 
-Typical flow: ping -> list_elements/element_schema -> create_page(draft) ->
-build native shortcodes -> validate -> update_page -> set_page_css ->
-render_preview (screenshot preview_url, check unrendered_shortcodes) -> fix ->
-set_status(publish).
+8. ITERATE CHEAPLY. set_page_css for CSS-only changes (instant, no content
+   rewrite); replace_in_content for surgical content edits.
+
+THE FIDELITY LOOP (how to reach world-class):
+target design -> build native -> validate -> update_page -> set_page_css ->
+render_preview (unrendered_shortcodes == []?) -> screenshot the preview_url ->
+compare to the target on TWO axes: (a) fidelity — layout, type, spacing, colour;
+(b) nativeness — no vc_raw_html, nothing leaked, validates. Diagnose the gap by
+inspecting the live DOM, fix, repeat until it matches or plateaus. On a genuine
+native ceiling, report it honestly — never cheat with raw HTML to hide it.
 """
 
 mcp = FastMCP("wpbakery", instructions=INSTRUCTIONS)
@@ -327,7 +354,8 @@ def wpbakery_set_status(client: str, post_id: int, status: str) -> str:
     Args:
         client: SEO toolkit client slug.
         post_id: WordPress post/page ID.
-        status: publish | draft | pending | private | future.
+        status: publish | draft | pending | private | future | trash
+                (trash moves it to the WordPress Trash; recoverable).
     """
     return _wrap(t.set_status, client, post_id, status)
 

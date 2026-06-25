@@ -105,6 +105,20 @@ elements → `validate` → `update_page` → `set_page_css` to skin (target the
 theme's real classes with `!important`) → `render_preview` →
 `screenshot.py "<preview_url>"` and look at it → fix → `set_status` publish.
 
+### Brand tokens & the fidelity loop
+
+For on-brand, world-class builds, two things matter:
+
+- **Brand tokens** — store the site's real design language (fonts, colours,
+  container width) as a `brand` block in `clients/<slug>.json` (shape in
+  `clients/example.json`). The agent injects them as page-CSS variables so builds
+  match the site. Extracted once from the live site.
+- **The fidelity loop** — given a target design, the agent builds native →
+  `render_preview` → screenshots → scores against the target (fidelity *and* "is
+  it native, nothing leaked") → fixes → repeats until it matches. CSS-only
+  iterations are instant via `set_page_css`. Full rules + an Impreza translation
+  cheatsheet live in `CLAUDE.md`.
+
 ---
 
 ## Tools
