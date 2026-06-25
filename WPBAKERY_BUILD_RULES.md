@@ -276,3 +276,70 @@ If you do build one (in the theme or a site plugin, NOT this MCP repo):
   granularity rule applies inside custom elements.
 
 Reference: WPBakery KB `vc_map` / nested-shortcodes-container / param-group docs.
+
+---
+
+## 10. Impreza/us-core CSS translation (target the theme's REAL markup)
+
+The theme re-renders your shortcodes into ITS markup — style those classes (via
+page CSS, §8), not WPBakery's. Verified on a live Impreza/us-core site:
+
+| You build (el_class `x`) | Impreza renders | Style this |
+|---|---|---|
+| `vc_row` | `section.l-section.x` wrapping `.l-section-h` | bg / clip-path / padding on `.x`; the **content container** is `.l-section-h` — force `max-width` + `margin:0 auto` (pages can render full-bleed) |
+| columns | a **CSS grid** `.g-cols.cols_N` (e.g. `grid-template-columns:538px 538px`) | for custom/asymmetric widths set `grid-template-columns` **on `.g-cols`** — setting a column's `width`/`flex` only shrinks the item INSIDE its track (52% of 538 = 280px; a classic trap) |
+| `vc_custom_heading` | `div.vc_custom_heading.x` (text directly inside) | `.x` — and set `use_theme_fonts="yes"` or it defaults to Abril Fatface |
+| `vc_column_text` | `.wpb_text_column.x > .wpb_wrapper > p` | `.x`, `.x p` (zero the `p` margins) |
+| `vc_tta_accordion` | `.w-tabs` / `.w-tabs-section-header/-title/-control/-content-h` | those, with `!important` |
+
+**Icons & buttons without leaks.** Per §5, `vc_btn`/`vc_icon`/`vc_single_image`
+can print as literal `[shortcode]` text, and `us_*` render but aren't in `vc_map`
+(so `validate` flags them). For guaranteed, validate-clean, pixel-perfect control:
+
+- **Icon** → a CSS background-SVG on a native element:
+  `.x-title::before{content:"";display:block;width:34px;height:34px;
+  background:url("data:image/svg+xml,%3Csvg…") no-repeat center/contain;}`
+  (URL-encode the SVG; `%23` for `#` in colours). No icon-font/shortcode dependency.
+- **Button** → a styled `<a>` inside a `vc_column_text`
+  (`[vc_column_text]<a class="btn">Label</a>[/vc_column_text]`), skinned in page CSS.
+
+**Advanced CSS works natively** (verified): overlap / `z-index`, `clip-path`
+angled section dividers, negative-margin cards that straddle two sections.
+**Full-bleed** to the viewport edge from inside the padded container:
+`margin-right: calc((container/2 − pad) − 50vw)` (≈ `calc(562.5px − 50vw)` for a
+1185px container + 30px padding). Untested gap: a real **editable photo** (needs
+media upload), as opposed to a CSS-background image.
+
+---
+
+## 11. Brand tokens & the fidelity loop (matching a target design)
+
+The self-audit gate (§7) ensures a build is NATIVE; this section ensures it is
+FAITHFUL to the requested design and on-brand.
+
+**Brand tokens (context, not content).** Pull the site's real design language
+once and reuse it. If `clients/<slug>.json` has a `brand` block, inject it as
+page-CSS variables on the section scope (`.x{ --navy:#002a52; --accent:#f07d00; … }`)
+and reference the vars. Otherwise extract it from the live site (chrome-devtools
+`navigate_page` → `evaluate_script` over `getComputedStyle` of `h1/h2/body/p`, a
+button, `.l-section-h`) and save it to the config.
+
+**The fidelity loop:**
+
+1. **Target.** Get/render the design and screenshot it as the benchmark.
+   Reproduce THAT — never substitute an old block, never fake it with raw HTML.
+2. **Build native** (§3) + brand tokens → `validate` → `update_page` →
+   `set_page_css`.
+3. **Preview & screenshot.** `render_preview` (it fetches the UNCACHED render so
+   leaking shortcodes are caught) → screenshot the `preview_url` (append a `&cb=1`
+   cache-buster; the site header + page-title band are theme chrome). Prefer the
+   chrome-devtools MCP: `navigate_page` → `evaluate_script` (read the live DOM to
+   find real classes / diagnose the gap) → `take_screenshot`.
+4. **Score on two axes:** (a) fidelity — layout, type, spacing, colour vs target;
+   (b) nativeness — the §7 gate. Diagnose, fix (CSS-only iterations are instant
+   via `set_page_css`), repeat until it matches or plateaus.
+5. On a genuine native ceiling, **report it honestly** — never cheat with raw HTML
+   to hide it.
+
+Housekeeping: `set_status` accepts `trash` (recoverable) to remove a test draft;
+loop scratch (screenshots, references) lives in `.loop/` (git-ignored).
