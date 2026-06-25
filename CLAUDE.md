@@ -7,6 +7,13 @@ follow these rules — they are the whole point of the tool.
 
 ## Rules for building WPBakery content
 
+> **The authoritative, non-negotiable ruleset is [`WPBAKERY_BUILD_RULES.md`](WPBAKERY_BUILD_RULES.md).**
+> It is loaded into the MCP server's `INSTRUCTIONS` at startup, so it is injected
+> into every session that uses the `wpbakery_*` tools. Read it before building.
+> The summary below is a quick reference; the full doc covers the granularity
+> contract, the decomposition map, the anti-pattern, value encoding, the
+> self-audit gate, and custom-element authoring.
+
 1. **Native elements only.** Use real WPBakery elements (`vc_row`, `vc_column`,
    `vc_tta_accordion`, `vc_custom_heading`, `vc_single_image`, …).
    **Never** lay out content with a `vc_raw_html` block — it becomes one opaque,

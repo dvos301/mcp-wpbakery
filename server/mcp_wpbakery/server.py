@@ -17,11 +17,22 @@ Register in Claude Code (.mcp.json / claude mcp add):
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from . import transport as t
+
+# The authoritative, non-negotiable build rules live in WPBAKERY_BUILD_RULES.md
+# at the repo root. Load them at import time and append to INSTRUCTIONS so they
+# are injected into EVERY session that connects to this MCP — this is what makes
+# the rules "always followed" regardless of the agent's working directory.
+_RULES_PATH = Path(__file__).resolve().parents[2] / "WPBAKERY_BUILD_RULES.md"
+try:
+    _BUILD_RULES = _RULES_PATH.read_text(encoding="utf-8")
+except OSError:
+    _BUILD_RULES = ""
 
 INSTRUCTIONS = """\
 Build and edit pages on WordPress + WPBakery. The point is NATIVE, editable
@@ -95,6 +106,16 @@ compare to the target on TWO axes: (a) fidelity — layout, type, spacing, colou
 inspecting the live DOM, fix, repeat until it matches or plateaus. On a genuine
 native ceiling, report it honestly — never cheat with raw HTML to hide it.
 """
+
+# Append the full, authoritative build rules (the granularity contract) so they
+# are part of the server instructions every session sees, not just a file the
+# agent might forget to read.
+if _BUILD_RULES:
+    INSTRUCTIONS += (
+        "\n\n===== AUTHORITATIVE BUILD RULES (WPBAKERY_BUILD_RULES.md) — "
+        "READ AND FOLLOW BEFORE BUILDING OR EDITING ANY PAGE =====\n\n"
+        + _BUILD_RULES
+    )
 
 mcp = FastMCP("wpbakery", instructions=INSTRUCTIONS)
 
