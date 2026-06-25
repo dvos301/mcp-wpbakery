@@ -121,6 +121,21 @@ Hit high fidelity with a tight loop, not one big guess:
 
 Loop scratch (screenshots, references) lives in `.loop/` (git-ignored).
 
+## Custom blocks (`mcp_*`) — optional, theme-proof elements
+
+The plugin ships self-styled block elements (`mcp_hero`, `mcp_cards`, `mcp_faq`,
+`mcp_cta`, …) registered via `vc_map()` in `wp-plugin/includes/class-blocks.php`.
+They appear in the builder + `wpbakery_list_elements` **alongside** the stock
+elements — additive, nothing removed. Because each render callback returns final
+HTML, they're **theme-proof** (no leaks/grid/column quirks, **no page CSS** — CSS
+ships in the plugin) yet **native + editable** (every field is a `vc_map` param;
+repeatable content via `param_group` = `rawurlencode(json_encode([...]))`).
+
+Decision: **native stock elements by default** for simple/granular content; reach
+for an `mcp_*` block when a section is design-heavy, fights the theme, repeats a
+component, or must look identical across themes. Brand palette is overridable per
+site via the `mcp_blocks_tokens` filter. Full detail in `WPBAKERY_BUILD_RULES.md` §12.
+
 ## Architecture
 
 - `wp-plugin/` — the WordPress plugin (engine). Reads `vc_map`, parses/serializes

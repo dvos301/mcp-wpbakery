@@ -343,3 +343,46 @@ button, `.l-section-h`) and save it to the config.
 
 Housekeeping: `set_status` accepts `trash` (recoverable) to remove a test draft;
 loop scratch (screenshots, references) lives in `.loop/` (git-ignored).
+
+> **§10 addendum — Impreza hides the 2nd top-level column.** On content-rich
+> pages, Impreza's JS sets an inline `display:none !important` on the second
+> column of a *top-level* 2-column `vc_row` — and inline `!important` can't be
+> overridden by page CSS (the cards render into the DOM but are invisible).
+> Fix: nest two-column layouts as `vc_row_inner` → `vc_column_inner` (the
+> structure the theme's own sections use), never top-level `vc_column` pairs.
+
+---
+
+## 12. MCP custom blocks (`mcp_*`) — the theme-proof escape hatch
+
+This plugin also ships optional, self-styled block elements (`mcp_hero`,
+`mcp_cards`, `mcp_faq`, `mcp_cta`, …) registered via `vc_map()`. They appear in
+`wpbakery_list_elements` and the WPBakery builder **alongside** the stock
+`vc_*`/theme elements — nothing is replaced. Reach for them when a section is
+**design-heavy, fights the theme, repeats a component, or must look identical
+across themes**; keep using stock native elements (§3) for simple, drag-edit prose.
+
+**Why they exist:** each block's render callback returns **final HTML**, so the
+theme never re-transforms it — which dissolves the entire §10 quirk list at once
+(no `vc_icon`/`vc_btn` leaks, no `.g-cols` grid surprises, no hidden column,
+**no page CSS** — the block's CSS ships in the plugin, printed once). They stay
+**native and editable**: every field is a `vc_map` param; repeatable content is a
+`param_group` row set. They are NOT raw HTML (§1) — they're real registered
+elements with controlled output, editable in the builder panel.
+
+**How the agent builds one:**
+- `wpbakery_element_schema mcp_hero` (etc.) for the exact params.
+- Repeatable params (`buttons`, `pills`, `cards`, `items`, `bars`) take
+  **`rawurlencode(json_encode([{…},{…}]))`**, e.g.
+  `cards="%5B%7B%22icon%22%3A%22shield%22%2C%22title%22%3A…%7D%5D"`.
+- **No page CSS needed** — a whole page can be a handful of `[mcp_*]` shortcodes.
+  (Verified live: 4 blocks = ~4 KB content, 0 bytes page CSS, theme-proof, full-bleed.)
+
+**Per-client brand:** the palette is overridable via the `mcp_blocks_tokens` PHP
+filter (default = artifact navy/orange/green). One source of truth in
+`wp-plugin/includes/class-blocks.php`.
+
+**Growing the library:** a new block = one `vc_map()` + one render callback + its
+CSS in `class-blocks.php`, then repack + redeploy. It joins the palette
+permanently and is discoverable automatically. Native composition stays the
+default; blocks are the escape hatch when they earn their place.
