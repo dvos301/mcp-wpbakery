@@ -140,6 +140,7 @@ class MCP_WPBakery_Element_Studio {
 			'params'      => $params,
 			'template'    => $template,
 			'css'         => isset( $args['css'] ) ? (string) $args['css'] : '',
+			'full_bleed'  => ! empty( $args['full_bleed'] ),
 			'updated_at'  => current_time( 'mysql', true ) . ' UTC',
 		);
 		if ( false === file_put_contents( $file, wp_json_encode( $def, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ) ) { // phpcs:ignore

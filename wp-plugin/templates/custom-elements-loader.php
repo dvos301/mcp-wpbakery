@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.1.1
+ * Version:           1.2.0
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -23,6 +23,12 @@
  *   {{#if param}}...{{/if}}      render only when the value is non-empty
  *   {{#each group}}...{{/each}}  loop a param_group; inside, {{field}} is the row field
  *   {{content}}            inner content (enclosing elements), shortcodes expanded
+ *
+ * Definition flag "full_bleed": true — the element is a full-width section
+ * that owns its own spacing. The loader wraps it in .cwpb-full and prints a
+ * once-per-page reset, scoped via :has() to ONLY the builder rows that
+ * contain such an element (and only inside .l-main, never header/footer
+ * page blocks), so theme row padding/gaps never fight the element.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -35,7 +41,9 @@ if ( class_exists( 'Custom_WPB_Elements_Library_V2' ) ) {
 
 class Custom_WPB_Elements_Library_V2 {
 
-	const LOADER_VERSION = '1.1.1';
+	const LOADER_VERSION = '1.2.0';
+
+	const FULLBLEED_CSS = '.l-main .l-section.wpb_row:has(.cwpb-full){padding-top:0!important;padding-bottom:0!important;margin:0 auto!important;min-height:0!important}.l-main .l-section.wpb_row:has(.cwpb-full)>.l-section-h{max-width:100%!important;padding-left:0!important;padding-right:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .vc_column-inner{padding:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .g-cols{--columns-gap:0rem}';
 
 	/** @var array<string,array>|null */
 	private $elements = null;
@@ -45,6 +53,9 @@ class Custom_WPB_Elements_Library_V2 {
 
 	/** @var bool */
 	private $mapped = false;
+
+	/** @var bool */
+	private $fullbleed_css_printed = false;
 
 	public static function boot() {
 		$lib = new self();
@@ -148,6 +159,13 @@ class Custom_WPB_Elements_Library_V2 {
 		if ( '' !== $css && empty( $this->css_printed[ $tag ] ) ) {
 			$this->css_printed[ $tag ] = true;
 			$html = '<style id="cwpb-' . esc_attr( $tag ) . '">' . $css . '</style>' . $html;
+		}
+		if ( ! empty( $def['full_bleed'] ) ) {
+			$html = '<div class="cwpb-full">' . $html . '</div>';
+			if ( ! $this->fullbleed_css_printed ) {
+				$this->fullbleed_css_printed = true;
+				$html = '<style id="cwpb-fullbleed">' . self::FULLBLEED_CSS . '</style>' . $html;
+			}
 		}
 		return $html;
 	}

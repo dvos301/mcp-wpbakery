@@ -492,6 +492,7 @@ class MCP_WPBakery_MCP_Tools {
 				'params'      => array( 'type' => 'array', 'description' => 'vc_map params (type, param_name, heading, value, std, group, params for param_group). Extra key "escape": text|html|url controls output escaping for {{param}}.' ),
 				'template'    => array( 'type' => 'string', 'description' => 'HTML with {{param}} (escaped), {{{param}}} (kses HTML), {{#if p}}...{{/if}}, {{#each group}}...{{/each}} for param_group rows, {{content}} for enclosing elements.' ),
 				'css'         => array( 'type' => 'string', 'description' => 'Element stylesheet, printed once per page when used.' ),
+				'full_bleed'  => array( 'type' => 'boolean', 'default' => false, 'description' => 'Set true for full-width sections that own their own spacing: the loader auto-neutralises theme row padding around them (scoped, never touches header/footer).' ),
 			),
 			array( 'tag', 'name', 'template' )
 		);
