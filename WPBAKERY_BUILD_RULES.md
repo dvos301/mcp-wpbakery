@@ -386,3 +386,34 @@ filter (default = artifact navy/orange/green). One source of truth in
 CSS in `class-blocks.php`, then repack + redeploy. It joins the palette
 permanently and is discoverable automatically. Native composition stays the
 default; blocks are the escape hatch when they earn their place.
+
+
+---
+
+## Custom element authoring standards (Element Studio)
+
+Custom elements must feel indistinguishable from native WPBakery elements in
+the edit panel. When creating or updating elements with
+`wpbakery_create_custom_element` / `wpbakery_update_custom_element`:
+
+1. **Headings are always TWO params**: `heading` (textfield, `admin_label: true`)
+   plus `heading_tag` — a dropdown of `{"H1":"h1","H2":"h2","H3":"h3","H4":"h4","Paragraph":"p"}`
+   with `"escape":"tag"` and `std` set to the semantically correct default
+   (`h1` only for hero-level elements; `h2` for normal sections; `h3` for
+   card/step titles when configurable). Template:
+   `<{{heading_tag}} class="...">{{heading}}</{{heading_tag}}>`.
+2. **Every finite choice is a dropdown** (label→value map, human labels) —
+   alignment, style variants, background tone. Never a free-text field for a
+   choice.
+3. **Set `std` defaults on everything** so a freshly inserted element renders
+   sensibly with zero configuration.
+4. **Group secondary params into tabs** with `group` (e.g. `"Design"`); the
+   default tab carries the content fields.
+5. **Repeatables are `param_group` rows; images are `attach_image`** (real
+   media picker — plain URLs also accepted); link fields declare `"escape":"url"`.
+6. **Declare escaping per param**: `text` (default) | `html` (rich fields) |
+   `url` | `tag` (element names).
+7. **Full-width sections declare `"full_bleed": true`** — never patch spacing
+   with page CSS.
+8. **Tags are site-prefixed lowercase snake_case** (`vista_hero`, `pwd_cta`);
+   `vc_`/`us_`/`wp_` prefixes are refused.

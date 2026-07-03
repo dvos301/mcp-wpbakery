@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.2.0
+ * Version:           1.2.1
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -18,7 +18,7 @@
  * HTML template with escaped values, so the theme never re-parses it.
  *
  * Template syntax (per element JSON "template"):
- *   {{param}}              value, escaped per the param's "escape" (text|html|url)
+ *   {{param}}              value, escaped per the param's "escape" (text|html|url|tag)
  *   {{{param}}}            value through wp_kses_post (rich HTML fields)
  *   {{#if param}}...{{/if}}      render only when the value is non-empty
  *   {{#each group}}...{{/each}}  loop a param_group; inside, {{field}} is the row field
@@ -41,7 +41,7 @@ if ( class_exists( 'Custom_WPB_Elements_Library_V2' ) ) {
 
 class Custom_WPB_Elements_Library_V2 {
 
-	const LOADER_VERSION = '1.2.0';
+	const LOADER_VERSION = '1.2.1';
 
 	const FULLBLEED_CSS = '.l-main .l-section.wpb_row:has(.cwpb-full){padding-top:0!important;padding-bottom:0!important;margin:0 auto!important;min-height:0!important}.l-main .l-section.wpb_row:has(.cwpb-full)>.l-section-h{max-width:100%!important;padding-left:0!important;padding-right:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .vc_column-inner{padding:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .g-cols{--columns-gap:0rem}';
 
@@ -243,6 +243,12 @@ class Custom_WPB_Elements_Library_V2 {
 					return esc_url( $first );
 				}
 				$escape = isset( $defs[ $m[1] ]['escape'] ) ? $defs[ $m[1] ]['escape'] : 'text';
+				if ( 'tag' === $escape ) {
+					// Dynamic element names (e.g. heading level dropdowns):
+					// strict whitelist, never attribute-injectable.
+					$v = strtolower( trim( $v ) );
+					return preg_match( '/^(h[1-6]|p|div|span)$/', $v ) ? $v : 'div';
+				}
 				if ( 'url' === $escape ) {
 					return esc_url( $v );
 				}
