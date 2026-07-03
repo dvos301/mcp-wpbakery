@@ -451,6 +451,35 @@ class MCP_WPBakery_MCP_Tools {
 			'manage_options'
 		);
 
+		/* ---- Media ---- */
+
+		$this->add(
+			'wpbakery_list_media',
+			'List media library images (id, URL, title, alt).',
+			$this->obj(
+				array(
+					'search'   => array( 'type' => 'string' ),
+					'per_page' => array( 'type' => 'integer', 'default' => 20 ),
+				)
+			),
+			array( $site, 'list_media' ),
+			'upload_files'
+		);
+		$this->add(
+			'wpbakery_upload_media',
+			'Upload an image to the media library from a remote URL or base64 data; returns the attachment id + URL. Use the id in attach_image params of custom elements.',
+			$this->obj(
+				array(
+					'url'      => array( 'type' => 'string', 'description' => 'Remote image URL to sideload.' ),
+					'data'     => array( 'type' => 'string', 'description' => 'Base64-encoded image bytes (alternative to url).' ),
+					'filename' => array( 'type' => 'string' ),
+					'alt'      => array( 'type' => 'string', 'description' => 'Alt text to set on the attachment.' ),
+				)
+			),
+			array( $site, 'upload_media' ),
+			'upload_files'
+		);
+
 		/* ---- Element Studio: reusable custom elements that OUTLIVE this plugin ---- */
 
 		$studio          = new MCP_WPBakery_Element_Studio();

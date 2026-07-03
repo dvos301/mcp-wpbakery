@@ -32,7 +32,7 @@ The WordPress plugin **is itself a remote MCP server**. Three steps:
      --header "Authorization: Bearer wpbmcp_..."
    ```
 
-Next Claude Code session, all **34 `wpbakery_*` tools** are available and the
+Next Claude Code session, all **36 `wpbakery_*` tools** are available and the
 [build rules](WPBAKERY_BUILD_RULES.md) are auto-injected as session
 instructions. No Python, no `install.sh`, no Application Password.
 
@@ -125,7 +125,7 @@ standalone, auto-generated library plugin —
   `wpbakery_delete_custom_element` (refuses to delete an element still used in
   content). Create/update/delete require the `install_plugins` capability.
 
-## 🧰 MCP tools (34)
+## 🧰 MCP tools (36)
 
 **Builder** (parity in both modes; hub tools take a `client` slug, remote tools don't — the connection identifies the site):
 

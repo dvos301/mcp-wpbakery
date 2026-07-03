@@ -707,6 +707,137 @@ class MCP_WPBakery_Site_Tools {
 	}
 
 	/* ------------------------------------------------------------------ */
+	/* Media                                                               */
+	/* ------------------------------------------------------------------ */
+
+	public function list_media( $args ) {
+		$q = new WP_Query(
+			array(
+				'post_type'      => 'attachment',
+				'post_status'    => 'inherit',
+				'post_mime_type' => 'image',
+				's'              => isset( $args['search'] ) ? (string) $args['search'] : '',
+				'posts_per_page' => max( 1, min( (int) ( isset( $args['per_page'] ) ? $args['per_page'] : 20 ), 100 ) ),
+				'fields'         => 'ids',
+			)
+		);
+		$items = array();
+		foreach ( $q->posts as $id ) {
+			$items[] = array(
+				'attachment_id' => (int) $id,
+				'url'           => wp_get_attachment_url( $id ),
+				'title'         => get_the_title( $id ),
+				'alt'           => (string) get_post_meta( $id, '_wp_attachment_image_alt', true ),
+			);
+		}
+		return array( 'items' => $items );
+	}
+
+	public function upload_media( $args ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+
+		$alt = isset( $args['alt'] ) ? sanitize_text_field( (string) $args['alt'] ) : '';
+
+		if ( ! empty( $args['url'] ) ) {
+			$this->assert_safe_url( (string) $args['url'] );
+			$tmp = download_url( (string) $args['url'] );
+			if ( is_wp_error( $tmp ) ) {
+				throw new RuntimeException( 'Download failed: ' . $tmp->get_error_message() );
+			}
+			$file = array(
+				'name'     => isset( $args['filename'] ) && '' !== $args['filename']
+					? sanitize_file_name( (string) $args['filename'] )
+					: basename( (string) wp_parse_url( (string) $args['url'], PHP_URL_PATH ) ),
+				'tmp_name' => $tmp,
+			);
+			$id = media_handle_sideload( $file, 0 );
+			if ( is_wp_error( $id ) ) {
+				@unlink( $tmp ); // phpcs:ignore
+				throw new RuntimeException( 'Sideload failed: ' . $id->get_error_message() );
+			}
+			if ( '' !== $alt ) {
+				update_post_meta( (int) $id, '_wp_attachment_image_alt', $alt );
+			}
+			return array(
+				'attachment_id' => (int) $id,
+				'url'           => wp_get_attachment_url( $id ),
+			);
+		}
+
+		if ( ! empty( $args['data'] ) ) {
+			$bytes = base64_decode( (string) $args['data'], true );
+			if ( false === $bytes ) {
+				throw new InvalidArgumentException( 'Invalid base64 data.' );
+			}
+			$name     = isset( $args['filename'] ) && '' !== $args['filename'] ? sanitize_file_name( (string) $args['filename'] ) : 'upload.png';
+			$uploaded = wp_upload_bits( $name, null, $bytes );
+			if ( ! empty( $uploaded['error'] ) ) {
+				throw new RuntimeException( 'Upload failed: ' . $uploaded['error'] );
+			}
+			$type = wp_check_filetype( $name );
+			$id   = wp_insert_attachment(
+				array(
+					'post_mime_type' => $type['type'] ? $type['type'] : 'image/png',
+					'post_title'     => $name,
+					'post_status'    => 'inherit',
+				),
+				$uploaded['file']
+			);
+			$meta = wp_generate_attachment_metadata( $id, $uploaded['file'] );
+			wp_update_attachment_metadata( $id, $meta );
+			if ( '' !== $alt ) {
+				update_post_meta( (int) $id, '_wp_attachment_image_alt', $alt );
+			}
+			return array(
+				'attachment_id' => (int) $id,
+				'url'           => wp_get_attachment_url( $id ),
+			);
+		}
+
+		throw new InvalidArgumentException( 'Provide either url or data.' );
+	}
+
+	/**
+	 * Block SSRF on sideloads: only http(s), and reject hosts resolving to
+	 * private, loopback, link-local (incl. cloud metadata) or reserved IPs.
+	 */
+	private function assert_safe_url( $url ) {
+		$parts  = wp_parse_url( $url );
+		$scheme = strtolower( isset( $parts['scheme'] ) ? $parts['scheme'] : '' );
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+			throw new InvalidArgumentException( 'Only http(s) image URLs are allowed.' );
+		}
+		$host = isset( $parts['host'] ) ? $parts['host'] : '';
+		if ( '' === $host ) {
+			throw new InvalidArgumentException( 'Invalid URL host.' );
+		}
+		$ips = array();
+		if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+			$ips[] = $host;
+		} else {
+			$v4 = @gethostbynamel( $host ); // phpcs:ignore
+			if ( is_array( $v4 ) ) {
+				$ips = array_merge( $ips, $v4 );
+			}
+			foreach ( (array) @dns_get_record( $host, DNS_AAAA ) as $rec ) { // phpcs:ignore
+				if ( ! empty( $rec['ipv6'] ) ) {
+					$ips[] = $rec['ipv6'];
+				}
+			}
+		}
+		if ( empty( $ips ) ) {
+			throw new InvalidArgumentException( 'Could not resolve URL host.' );
+		}
+		foreach ( $ips as $ip ) {
+			if ( ! filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+				throw new InvalidArgumentException( 'URL resolves to a disallowed internal address.' );
+			}
+		}
+	}
+
+	/* ------------------------------------------------------------------ */
 	/* REST proxy                                                          */
 	/* ------------------------------------------------------------------ */
 

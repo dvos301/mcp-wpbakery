@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -35,7 +35,7 @@ if ( class_exists( 'Custom_WPB_Elements_Library_V2' ) ) {
 
 class Custom_WPB_Elements_Library_V2 {
 
-	const LOADER_VERSION = '1.1.0';
+	const LOADER_VERSION = '1.1.1';
 
 	/** @var array<string,array>|null */
 	private $elements = null;
@@ -210,6 +210,20 @@ class Custom_WPB_Elements_Library_V2 {
 			'/\{\{([a-z0-9_]+)\}\}/',
 			function ( $m ) use ( $values, $defs ) {
 				$v = (string) ( isset( $values[ $m[1] ] ) ? $values[ $m[1] ] : '' );
+				$type = isset( $defs[ $m[1] ]['type'] ) ? $defs[ $m[1] ]['type'] : '';
+				// Media-picker params store attachment IDs; resolve to a URL.
+				// Plain URL strings pass through, so agents can set either.
+				if ( 'attach_image' === $type || 'attach_images' === $type ) {
+					$first = trim( (string) current( explode( ',', $v ) ) );
+					if ( '' === $first ) {
+						return '';
+					}
+					if ( is_numeric( $first ) ) {
+						$url = wp_get_attachment_image_url( (int) $first, 'full' );
+						return $url ? esc_url( $url ) : '';
+					}
+					return esc_url( $first );
+				}
 				$escape = isset( $defs[ $m[1] ]['escape'] ) ? $defs[ $m[1] ]['escape'] : 'text';
 				if ( 'url' === $escape ) {
 					return esc_url( $v );
