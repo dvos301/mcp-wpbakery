@@ -5,6 +5,12 @@ registry and build **native, editable** WPBakery elements — rows, columns,
 accordions, buttons, headings, the site's own custom elements — that open and
 edit normally in the WPBakery editor. Not raw-HTML dumps.
 
+> **Shortcut (v0.7.0+): you may not need any of this.** The plugin is now
+> itself a remote MCP server — in wp-admin → MCP WPBakery → **Option A**,
+> generate a token and run the one `claude mcp add` command it shows. The
+> steps below are for the **local hub** (Option B), which you still want for
+> multi-site setups driven from one config folder or SSH-only sites.
+
 There are two parts:
 
 - **A WordPress plugin** ("MCP WPBakery Bridge") installed on each site — the

@@ -73,6 +73,26 @@ class MCP_WPBakery_Admin {
 		);
 	}
 
+	/** Issue / revoke bearer tokens for the direct (remote MCP) connection. */
+	private function handle_token_actions() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return null;
+		}
+		if ( ! empty( $_POST['mcp_issue_token'] ) && check_admin_referer( 'mcp_wpb_token' ) ) {
+			if ( ! is_ssl() ) {
+				return array( 'error' => 'HTTPS is required to issue a token — bearer tokens must never travel over plain HTTP.' );
+			}
+			$label  = sanitize_text_field( wp_unslash( isset( $_POST['mcp_token_label'] ) ? $_POST['mcp_token_label'] : '' ) );
+			$issued = ( new MCP_WPBakery_MCP_Tokens() )->issue( get_current_user_id(), $label );
+			return array( 'token' => $issued['token'] );
+		}
+		if ( ! empty( $_POST['mcp_revoke_token'] ) && check_admin_referer( 'mcp_wpb_token' ) ) {
+			( new MCP_WPBakery_MCP_Tokens() )->revoke( (int) $_POST['mcp_revoke_token'] );
+			return array( 'revoked' => true );
+		}
+		return null;
+	}
+
 	public function render() {
 		$core      = MCP_WPBakery_Core::instance();
 		$vc_active = $core->is_vc_active();
@@ -82,6 +102,7 @@ class MCP_WPBakery_Admin {
 		$slug      = $this->default_slug();
 
 		$gen = $this->handle_generate();
+		$tok = $this->handle_token_actions();
 
 		$el_count = null;
 		$el_error = '';
@@ -121,7 +142,75 @@ class MCP_WPBakery_Admin {
 				</tbody>
 			</table>
 
-			<h2>Connect an AI agent</h2>
+			<h2>Connect an AI agent &mdash; Option A: direct (recommended)</h2>
+			<p style="max-width:820px">The plugin itself is a <strong>remote MCP server</strong> at
+			<code><?php echo esc_html( rest_url( 'mcp-wpbakery/v1/mcp' ) ); ?></code>.
+			Generate a token and run one command on your computer &mdash; no local server install,
+			no Application Password. Tokens are hashed at rest, rate-limited, and every call is audit-logged.</p>
+
+			<?php if ( $tok && ! empty( $tok['error'] ) ) : ?>
+				<div class="notice notice-error"><p><?php echo esc_html( $tok['error'] ); ?></p></div>
+			<?php elseif ( $tok && ! empty( $tok['token'] ) ) :
+				$connect_cmd = 'claude mcp add --transport http wpbakery-' . $slug . ' '
+					. rest_url( 'mcp-wpbakery/v1/mcp' )
+					. ' --header "Authorization: Bearer ' . $tok['token'] . '"';
+				?>
+				<div class="notice notice-success" style="padding:12px 14px;max-width:820px">
+					<p style="margin-top:0"><strong>&#10003; Token created</strong> (shown once &mdash; copy now).
+					Run this on the computer where Claude Code runs:</p>
+					<p><button type="button" class="button button-primary mcp-copy" data-target="mcp-token-cmd">Copy command</button></p>
+					<textarea id="mcp-token-cmd" readonly rows="3"
+						style="width:100%;font-family:monospace;font-size:12px"><?php echo esc_textarea( $connect_cmd ); ?></textarea>
+				</div>
+				<script>
+				document.querySelectorAll('.mcp-copy').forEach(function(btn){
+					btn.addEventListener('click',function(){
+						var t=document.getElementById(btn.dataset.target);
+						t.select(); t.setSelectionRange(0,99999);
+						navigator.clipboard.writeText(t.value);
+						var o=btn.textContent; btn.textContent='Copied!';
+						setTimeout(function(){btn.textContent=o;},1500);
+					});
+				});
+				</script>
+			<?php endif; ?>
+
+			<?php if ( current_user_can( 'manage_options' ) ) : ?>
+				<form method="post" style="margin-bottom:8px">
+					<?php wp_nonce_field( 'mcp_wpb_token' ); ?>
+					<input type="text" name="mcp_token_label" placeholder="Token label (e.g. laptop)" class="regular-text">
+					<button type="submit" name="mcp_issue_token" value="1" class="button button-primary">Generate token</button>
+				</form>
+				<?php $token_rows = ( new MCP_WPBakery_MCP_Tokens() )->all(); ?>
+				<?php if ( ! empty( $token_rows ) ) : ?>
+					<table class="widefat striped" style="max-width:780px;margin-bottom:16px">
+						<thead><tr><th>Label</th><th>User</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+						<tbody>
+						<?php foreach ( $token_rows as $row ) :
+							$u = get_userdata( (int) $row->user_id ); ?>
+							<tr>
+								<td><?php echo esc_html( $row->label ); ?></td>
+								<td><?php echo esc_html( $u ? $u->user_login : '?' ); ?></td>
+								<td><?php echo esc_html( $row->created_at ); ?></td>
+								<td><?php echo esc_html( $row->last_used_at ? $row->last_used_at : 'never' ); ?></td>
+								<td>
+									<form method="post" style="display:inline">
+										<?php wp_nonce_field( 'mcp_wpb_token' ); ?>
+										<button type="submit" name="mcp_revoke_token"
+											value="<?php echo (int) $row->id; ?>"
+											class="button-link-delete">Revoke</button>
+									</form>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				<?php endif; ?>
+			<?php else : ?>
+				<p><em>Ask an administrator to generate a connection token.</em></p>
+			<?php endif; ?>
+
+			<h2>Option B: local hub (multi-site setups / SSH)</h2>
 
 			<?php if ( $gen && empty( $gen['error'] ) ) :
 				$cfg_json = wp_json_encode(

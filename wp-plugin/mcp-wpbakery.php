@@ -3,7 +3,7 @@
  * Plugin Name:       MCP WPBakery Bridge
  * Plugin URI:        https://github.com/pwd/mcp-wpbakery
  * Description:        Exposes the WPBakery (js_composer) element registry and page content to an MCP server via WP-CLI and REST, so an AI agent can read vc_map and build native, fully-editable WPBakery elements.
- * Version:           0.6.0
+ * Version:           0.7.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            PWD
@@ -15,18 +15,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MCP_WPBAKERY_VERSION', '0.6.0' );
+define( 'MCP_WPBAKERY_VERSION', '0.7.0' );
 define( 'MCP_WPBAKERY_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once MCP_WPBAKERY_DIR . 'includes/class-core.php';
 require_once MCP_WPBAKERY_DIR . 'includes/class-rest.php';
 require_once MCP_WPBAKERY_DIR . 'includes/class-blocks.php';
+require_once MCP_WPBAKERY_DIR . 'includes/class-site-tools.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-schema.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-tokens.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-audit.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-auth.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-tools.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-server.php';
+require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-controller.php';
+
+// Token + audit tables (created on activation; upgraded on version change,
+// because zip-overwrite updates never fire the activation hook).
+register_activation_hook( __FILE__, array( 'MCP_WPBakery_MCP_Schema', 'install' ) );
 
 // Register REST routes (no-op unless authenticated requests come in).
 add_action(
 	'plugins_loaded',
 	function () {
 		( new MCP_WPBakery_REST() )->register();
+		// Remote MCP endpoint: Claude Code connects directly with a bearer
+		// token — no local server or app password needed.
+		( new MCP_WPBakery_MCP_Controller() )->register();
 	}
 );
 

@@ -37,6 +37,12 @@ def main() -> None:
             # which is what WordPress expects inside the zip.
             arc = Path(PLUGIN_SLUG) / f.relative_to(PLUGIN_DIR)
             z.write(f, arcname=str(arc))
+        # Ship the build rules with the plugin so the remote MCP endpoint can
+        # serve them as session instructions (same contract the local hub
+        # injects). The repo-root file stays the single source of truth.
+        rules = ROOT / "WPBAKERY_BUILD_RULES.md"
+        if rules.exists():
+            z.write(rules, arcname=str(Path(PLUGIN_SLUG) / rules.name))
 
     print(f"✓ wrote {out}  ({out.stat().st_size} bytes, {len(files)} files)")
     print("  Upload: WP admin → Plugins → Add New → Upload Plugin → Activate")

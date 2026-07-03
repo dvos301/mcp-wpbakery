@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  php-lint:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.2', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Lint every plugin PHP file
+        run: |
+          set -e
+          find wp-plugin -name '*.php' -print0 | xargs -0 -n1 -P4 php -l
+
+  python-and-pack:
+    name: Python server + plugin zip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile-check the MCP server
+        run: python -m compileall -q server
+      - name: Build the plugin zip (includes build rules)
+        run: python server/pack.py
+      - name: Verify the zip contains the MCP endpoint and build rules
+        run: |
+          python - <<'EOF'
+          import zipfile
+          names = zipfile.ZipFile('dist/mcp-wpbakery.zip').namelist()
+          required = [
+              'mcp-wpbakery/includes/mcp/class-mcp-controller.php',
+              'mcp-wpbakery/includes/class-site-tools.php',
+              'mcp-wpbakery/WPBAKERY_BUILD_RULES.md',
+          ]
+          missing = [r for r in required if r not in names]
+          assert not missing, f'missing from zip: {missing}'
+          print(f'zip OK — {len(names)} files')
+          EOF

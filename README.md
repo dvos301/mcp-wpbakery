@@ -9,6 +9,28 @@ element is editable exactly as if a human dragged it in.
 
 ---
 
+## ⚡ Connect directly — no local install (v0.7.0+, recommended)
+
+The WP plugin is itself a **remote MCP server**. In wp-admin → **MCP WPBakery →
+Option A**, generate a token and run the one command it gives you:
+
+```
+claude mcp add --transport http wpbakery-<site> \
+  https://<site>/wp-json/mcp-wpbakery/v1/mcp \
+  --header "Authorization: Bearer wpbmcp_..."
+```
+
+That's the whole setup: 29 `wpbakery_*` tools (builder + sitewide search,
+internal-link/anchor analysis, diagnostics, SEO meta, page cloning, and a full
+REST proxy), with the build rules auto-injected as session instructions.
+Tokens are SHA-256-hashed at rest, HTTPS-only, rate-limited, and every call is
+audit-logged with revocation in wp-admin.
+
+The local hub below still works unchanged (Option B) — use it for multi-site
+setups driven from one config folder, or sites reachable only over SSH/WP-CLI.
+
+---
+
 ## 📐 Build rules (mandatory — auto-loaded into every agent session)
 
 This repo ships **[`WPBAKERY_BUILD_RULES.md`](WPBAKERY_BUILD_RULES.md)** — the
