@@ -59,6 +59,10 @@ class MCP_WPBakery_Element_Studio {
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		// A 0.8.0-era upload could leave the bridge's template copy activated
+		// as a plugin; it then defines the loader class against the wrong
+		// (empty) directory on every request. Remove it — no-op when absent.
+		deactivate_plugins( 'mcp-wpbakery/templates/custom-elements-loader.php', true );
 		// The plugins list may have been cached earlier in this request,
 		// before the loader file existed — activate_plugin() would then fail
 		// with "The plugin does not have a valid header." Flush it first.

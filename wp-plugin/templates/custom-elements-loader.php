@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.0.2
+ * Version:           1.1.0
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -29,13 +29,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( class_exists( 'Custom_WPB_Elements_Library' ) ) {
+if ( class_exists( 'Custom_WPB_Elements_Library_V2' ) ) {
 	return;
 }
 
-class Custom_WPB_Elements_Library {
+class Custom_WPB_Elements_Library_V2 {
 
-	const LOADER_VERSION = '1.0.2';
+	const LOADER_VERSION = '1.1.0';
 
 	/** @var array<string,array>|null */
 	private $elements = null;
@@ -61,7 +61,10 @@ class Custom_WPB_Elements_Library {
 	}
 
 	private function elements_dir() {
-		return plugin_dir_path( __FILE__ ) . 'elements/';
+		// Constant path, NOT __FILE__-relative: if a stray copy of this file
+		// (e.g. the bridge's template) ever defines the class first, it still
+		// reads the real library's elements.
+		return trailingslashit( WP_PLUGIN_DIR ) . 'custom-wpbakery-elements/elements/';
 	}
 
 	/** @return array<string,array> tag => definition */
@@ -233,4 +236,8 @@ class Custom_WPB_Elements_Library {
 	}
 }
 
-Custom_WPB_Elements_Library::boot();
+// Never boot from the bridge's templates/ copy — only from the installed
+// library plugin (or anywhere else it might legitimately be included from).
+if ( 'templates' !== basename( __DIR__ ) ) {
+	Custom_WPB_Elements_Library_V2::boot();
+}
