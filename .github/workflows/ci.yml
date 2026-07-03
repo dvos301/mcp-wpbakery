@@ -49,5 +49,12 @@ jobs:
           ]
           missing = [r for r in required if r not in names]
           assert not missing, f'missing from zip: {missing}'
-          print(f'zip OK — {len(names)} files')
+          # Exactly ONE plugin header — a second one (e.g. from the loader
+          # template) makes WordPress reject the upload as invalid.
+          import re
+          z = zipfile.ZipFile('dist/mcp-wpbakery.zip')
+          headers = [n for n in names if n.endswith('.php')
+                     and re.search(rb'^[ \t/*#@]*Plugin Name:[ \t]*\S', z.read(n)[:8192], re.M)]
+          assert headers == ['mcp-wpbakery/mcp-wpbakery.php'], f'unexpected plugin headers: {headers}'
+          print(f'zip OK — {len(names)} files, single plugin header')
           EOF

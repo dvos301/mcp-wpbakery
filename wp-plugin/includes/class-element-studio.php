@@ -45,12 +45,24 @@ class MCP_WPBakery_Element_Studio {
 
 		$target = $this->lib_dir() . 'custom-wpbakery-elements.php';
 		if ( $this->loader_version( $source ) !== $this->loader_version( $target ) ) {
-			if ( false === file_put_contents( $target, file_get_contents( $source ) ) ) { // phpcs:ignore
+			// The template ships with a stubbed header line so the bridge's
+			// upload zip never contains a second "Plugin Name:" header (which
+			// fails WordPress package validation). Make it real on install.
+			$code = str_replace(
+				'Plugin-Name-Stub:  ',
+				'Plugin Name:       ',
+				(string) file_get_contents( $source )
+			);
+			if ( false === file_put_contents( $target, $code ) ) { // phpcs:ignore
 				throw new RuntimeException( 'Could not write the library loader — check filesystem permissions.' );
 			}
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		// The plugins list may have been cached earlier in this request,
+		// before the loader file existed — activate_plugin() would then fail
+		// with "The plugin does not have a valid header." Flush it first.
+		wp_clean_plugins_cache( false );
 		if ( ! is_plugin_active( self::LIB_FILE ) ) {
 			$err = activate_plugin( self::LIB_FILE );
 			if ( is_wp_error( $err ) ) {
