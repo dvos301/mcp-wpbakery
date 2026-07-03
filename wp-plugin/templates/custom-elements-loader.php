@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.2.1
+ * Version:           1.2.2
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -41,7 +41,7 @@ if ( class_exists( 'Custom_WPB_Elements_Library_V2' ) ) {
 
 class Custom_WPB_Elements_Library_V2 {
 
-	const LOADER_VERSION = '1.2.1';
+	const LOADER_VERSION = '1.2.2';
 
 	const FULLBLEED_CSS = '.l-main .l-section.wpb_row:has(.cwpb-full){padding-top:0!important;padding-bottom:0!important;margin:0 auto!important;min-height:0!important}.l-main .l-section.wpb_row:has(.cwpb-full)>.l-section-h{max-width:100%!important;padding-left:0!important;padding-right:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .vc_column-inner{padding:0!important}.l-main .l-section.wpb_row:has(.cwpb-full) .g-cols{--columns-gap:0rem}';
 
@@ -199,15 +199,19 @@ class Custom_WPB_Elements_Library_V2 {
 			(string) $tpl
 		);
 
-		// {{#if param}}...{{/if}} — keep only when non-empty.
-		$tpl = preg_replace_callback(
-			'/\{\{#if ([a-z0-9_]+)\}\}(.*?)\{\{\/if\}\}/s',
-			function ( $m ) use ( $values ) {
-				$v = isset( $values[ $m[1] ] ) ? trim( (string) $values[ $m[1] ] ) : '';
-				return '' !== $v ? $m[2] : '';
-			},
-			$tpl
-		);
+		// {{#if param}}...{{/if}} — keep only when non-empty. Nested blocks
+		// resolve innermost-first, iteratively.
+		$if_pattern = '/\{\{#if ([a-z0-9_]+)\}\}((?:(?!\{\{#if ).)*?)\{\{\/if\}\}/s';
+		for ( $i = 0; $i < 10 && preg_match( $if_pattern, $tpl ); $i++ ) {
+			$tpl = preg_replace_callback(
+				$if_pattern,
+				function ( $m ) use ( $values ) {
+					$v = isset( $values[ $m[1] ] ) ? trim( (string) $values[ $m[1] ] ) : '';
+					return '' !== $v ? $m[2] : '';
+				},
+				$tpl
+			);
+		}
 
 		// {{content}} — inner content of enclosing elements.
 		if ( null !== $content ) {
