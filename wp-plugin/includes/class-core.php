@@ -717,13 +717,19 @@ class MCP_WPBakery_Core {
 			$html   = apply_filters( 'the_content', $post->post_content );
 		}
 
-		// Registered shortcodes still present as literal text = the theme did not
-		// render them (e.g. vc_btn on Impreza).
+		// Shortcodes still present as literal text = they did not render. Catch
+		// BOTH registered elements the theme skipped (e.g. vc_btn on Impreza)
+		// AND unregistered tags that the page's own content uses — a custom
+		// element whose plugin failed to load must not pass silently.
+		$content_tags = array();
+		if ( preg_match_all( '/\[([a-z][a-z0-9_]+)(?=[\s\]\/])/i', (string) $post->post_content, $cm ) ) {
+			$content_tags = array_fill_keys( array_map( 'strtolower', array_unique( $cm[1] ) ), true );
+		}
 		$unrendered = array();
 		if ( preg_match_all( '/\[([a-z][a-z0-9_]+)(?=[\s\]\/])/i', $html, $m ) ) {
 			$registered = isset( $GLOBALS['shortcode_tags'] ) ? $GLOBALS['shortcode_tags'] : array();
 			foreach ( array_unique( $m[1] ) as $tag ) {
-				if ( isset( $registered[ $tag ] ) ) {
+				if ( isset( $registered[ $tag ] ) || isset( $content_tags[ strtolower( $tag ) ] ) ) {
 					$unrendered[] = $tag;
 				}
 			}

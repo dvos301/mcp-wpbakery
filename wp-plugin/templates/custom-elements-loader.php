@@ -2,7 +2,7 @@
 /**
  * Plugin-Name-Stub:  Custom WPBakery Elements (Site Library)
  * Description:       This site's own custom WPBakery elements. Definitions live in this plugin's elements/ folder as JSON. Fully standalone — elements keep working and stay editable even if the authoring plugin (MCP WPBakery Bridge) is removed.
- * Version:           1.0.1
+ * Version:           1.0.2
  * Requires PHP:      7.2
  * License:           GPL-2.0-or-later
  *
@@ -35,7 +35,7 @@ if ( class_exists( 'Custom_WPB_Elements_Library' ) ) {
 
 class Custom_WPB_Elements_Library {
 
-	const LOADER_VERSION = '1.0.1';
+	const LOADER_VERSION = '1.0.2';
 
 	/** @var array<string,array>|null */
 	private $elements = null;
@@ -48,10 +48,14 @@ class Custom_WPB_Elements_Library {
 
 	public static function boot() {
 		$lib = new self();
+		// Register IMMEDIATELY at include time — the proven pattern. This
+		// plugin was activated after js_composer, so it loads after it and
+		// vc_map()/add_shortcode() are available right now; deferred init
+		// registrations have been observed never firing on some stacks.
+		$lib->register_shortcodes();
+		$lib->map_elements();
+		// Safety nets for unusual load orders (both are idempotent).
 		add_action( 'init', array( $lib, 'register_shortcodes' ), 5 );
-		// vc_before_init never fires on REST requests, but vc_map() queues
-		// registrations as soon as js_composer is loaded — so also map early
-		// on init; whichever hook runs first wins (guarded in map_elements).
 		add_action( 'init', array( $lib, 'map_elements' ), 4 );
 		add_action( 'vc_before_init', array( $lib, 'map_elements' ) );
 	}
