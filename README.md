@@ -32,7 +32,7 @@ The WordPress plugin **is itself a remote MCP server**. Three steps:
      --header "Authorization: Bearer wpbmcp_..."
    ```
 
-Next Claude Code session, all **29 `wpbakery_*` tools** are available and the
+Next Claude Code session, all **34 `wpbakery_*` tools** are available and the
 [build rules](WPBAKERY_BUILD_RULES.md) are auto-injected as session
 instructions. No Python, no `install.sh`, no Application Password.
 
@@ -102,7 +102,30 @@ Edit the repo-root file → rebuild the zip (Option A) or restart the session
 
 ---
 
-## 🧰 MCP tools (29)
+## 🧱 Element Studio — reusable custom elements that outlive this plugin (v0.8.0+)
+
+Replaces element-builder plugins (Element Studio & co): the agent can author
+**reusable custom WPBakery elements** — every field a real `vc_map` param, so
+clients edit them in the builder like any native element.
+
+Definitions are **not** stored in this plugin. They are written into a
+standalone, auto-generated library plugin —
+**`wp-content/plugins/custom-wpbakery-elements/`** — which owns the elements:
+
+- Delete the MCP WPBakery Bridge → every custom element **keeps rendering and
+  stays editable**. The library has zero dependency on the bridge.
+- Each element is one JSON file (params + HTML template + scoped CSS) in the
+  library's `elements/` folder — hand-editable, git-able, portable to other
+  sites by copying the folder.
+- Templates use `{{param}}` (escaped), `{{{param}}}` (rich HTML),
+  `{{#if p}}…{{/if}}`, `{{#each group}}…{{/each}}` for repeatable rows, and
+  `{{content}}` for enclosing elements. Element CSS prints once per page.
+- Studio tools: `wpbakery_create_custom_element`, `wpbakery_update_custom_element`,
+  `wpbakery_list_custom_elements`, `wpbakery_get_custom_element`,
+  `wpbakery_delete_custom_element` (refuses to delete an element still used in
+  content). Create/update/delete require the `install_plugins` capability.
+
+## 🧰 MCP tools (34)
 
 **Builder** (parity in both modes; hub tools take a `client` slug, remote tools don't — the connection identifies the site):
 
@@ -137,6 +160,7 @@ Edit the repo-root file → rebuild the zip (Option A) or restart the session
 | `wpbakery_get_seo_meta` / `wpbakery_set_seo_meta` | Rank Math / Yoast title, description, focus keyword. |
 | `wpbakery_clone_page` | Duplicate a page (content + meta + page CSS) as a draft. |
 | `wpbakery_rest_request` / `wpbakery_list_rest_routes` | Full core+plugin REST surface, in-process, permission-checked. |
+| `wpbakery_create/update/get/delete/list_custom_element(s)` | Element Studio: author reusable custom elements into the standalone library plugin (see above). |
 
 ## Typical agent workflow
 

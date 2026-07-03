@@ -43,6 +43,8 @@ jobs:
           required = [
               'mcp-wpbakery/includes/mcp/class-mcp-controller.php',
               'mcp-wpbakery/includes/class-site-tools.php',
+              'mcp-wpbakery/includes/class-element-studio.php',
+              'mcp-wpbakery/templates/custom-elements-loader.php',
               'mcp-wpbakery/WPBAKERY_BUILD_RULES.md',
           ]
           missing = [r for r in required if r not in names]

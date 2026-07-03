@@ -3,7 +3,7 @@
  * Plugin Name:       MCP WPBakery Bridge
  * Plugin URI:        https://github.com/dvos301/mcp-wpbakery
  * Description:        Exposes the WPBakery (js_composer) element registry and page content to an MCP server via WP-CLI and REST, so an AI agent can read vc_map and build native, fully-editable WPBakery elements.
- * Version:           0.7.0
+ * Version:           0.8.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            PWD
@@ -15,13 +15,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MCP_WPBAKERY_VERSION', '0.7.0' );
+define( 'MCP_WPBAKERY_VERSION', '0.8.0' );
 define( 'MCP_WPBAKERY_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once MCP_WPBAKERY_DIR . 'includes/class-core.php';
 require_once MCP_WPBAKERY_DIR . 'includes/class-rest.php';
 require_once MCP_WPBAKERY_DIR . 'includes/class-blocks.php';
 require_once MCP_WPBAKERY_DIR . 'includes/class-site-tools.php';
+require_once MCP_WPBAKERY_DIR . 'includes/class-element-studio.php';
 require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-schema.php';
 require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-tokens.php';
 require_once MCP_WPBAKERY_DIR . 'includes/mcp/class-mcp-audit.php';

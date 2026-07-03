@@ -450,5 +450,65 @@ class MCP_WPBakery_MCP_Tools {
 			array( $site, 'list_rest_routes' ),
 			'manage_options'
 		);
+
+		/* ---- Element Studio: reusable custom elements that OUTLIVE this plugin ---- */
+
+		$studio          = new MCP_WPBakery_Element_Studio();
+		$studio_schema   = $this->obj(
+			array(
+				'tag'         => array( 'type' => 'string', 'description' => 'Shortcode base, lowercase with a site prefix, e.g. "pwd_feature_grid". Reserved prefixes vc_/us_/wp_ are refused.' ),
+				'name'        => array( 'type' => 'string', 'description' => 'Display name in the WPBakery element picker.' ),
+				'description' => array( 'type' => 'string' ),
+				'category'    => array( 'type' => 'string', 'default' => 'Custom Elements' ),
+				'params'      => array( 'type' => 'array', 'description' => 'vc_map params (type, param_name, heading, value, std, group, params for param_group). Extra key "escape": text|html|url controls output escaping for {{param}}.' ),
+				'template'    => array( 'type' => 'string', 'description' => 'HTML with {{param}} (escaped), {{{param}}} (kses HTML), {{#if p}}...{{/if}}, {{#each group}}...{{/each}} for param_group rows, {{content}} for enclosing elements.' ),
+				'css'         => array( 'type' => 'string', 'description' => 'Element stylesheet, printed once per page when used.' ),
+			),
+			array( 'tag', 'name', 'template' )
+		);
+
+		$this->add(
+			'wpbakery_create_custom_element',
+			'Create a reusable custom WPBakery element (native, editable via vc_map params). It is written into the standalone "Custom WPBakery Elements" library plugin, so it keeps working even if this bridge plugin is deleted. The library is auto-created and activated on first use.',
+			$studio_schema,
+			function ( $args ) use ( $studio ) {
+				return $studio->save( $args, false );
+			},
+			'install_plugins'
+		);
+		$this->add(
+			'wpbakery_update_custom_element',
+			'Update an existing custom element definition (same fields as create; full replace).',
+			$studio_schema,
+			function ( $args ) use ( $studio ) {
+				return $studio->save( $args, true );
+			},
+			'install_plugins'
+		);
+		$this->add(
+			'wpbakery_list_custom_elements',
+			'List the site\'s custom elements from the standalone library plugin.',
+			$this->obj(),
+			function ( $args ) use ( $studio ) {
+				return $studio->all();
+			}
+		);
+		$this->add(
+			'wpbakery_get_custom_element',
+			'Get one custom element\'s full definition (params, template, css) for review or as a base for an update.',
+			$this->obj( array( 'tag' => array( 'type' => 'string' ) ), array( 'tag' ) ),
+			function ( $args ) use ( $studio ) {
+				return $studio->get( isset( $args['tag'] ) ? $args['tag'] : '' );
+			}
+		);
+		$this->add(
+			'wpbakery_delete_custom_element',
+			'Delete a custom element definition. Refuses if the shortcode is still used in any post content.',
+			$this->obj( array( 'tag' => array( 'type' => 'string' ) ), array( 'tag' ) ),
+			function ( $args ) use ( $studio ) {
+				return $studio->delete( isset( $args['tag'] ) ? $args['tag'] : '' );
+			},
+			'install_plugins'
+		);
 	}
 }
