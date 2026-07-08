@@ -88,7 +88,21 @@ class MCP_WPBakery_MCP_Server {
 	}
 
 	private function instructions() {
-		$text  = self::PREAMBLE;
+		$text = self::PREAMBLE;
+
+		// Site-specific knowledge first: brand tokens, known-broken elements,
+		// lessons from prior sessions — so no session re-pays the discovery
+		// tax. Never let a knowledge failure break initialize.
+		try {
+			$knowledge = ( new MCP_WPBakery_Site_Knowledge() )->instructions_text();
+			if ( '' !== $knowledge ) {
+				$text .= "\n\n===== SITE KNOWLEDGE (live from THIS site — trust it; add lessons via wpbakery_add_site_note / wpbakery_flag_broken_element) =====\n\n"
+					. $knowledge;
+			}
+		} catch ( Throwable $e ) {
+			error_log( '[mcp-wpbakery] site knowledge failed: ' . $e->getMessage() );
+		}
+
 		$rules = MCP_WPBAKERY_DIR . 'WPBAKERY_BUILD_RULES.md';
 		if ( is_readable( $rules ) ) {
 			$text .= "\n\n===== AUTHORITATIVE BUILD RULES (WPBAKERY_BUILD_RULES.md) — READ AND FOLLOW BEFORE BUILDING OR EDITING ANY PAGE =====\n\n"

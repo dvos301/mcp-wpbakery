@@ -149,6 +149,22 @@ class MCP_WPBakery_REST {
 		);
 		register_rest_route(
 			self::NS,
+			'/knowledge',
+			array(
+				array(
+					'methods'             => 'GET',
+					'permission_callback' => $read,
+					'callback'            => array( $this, 'get_knowledge' ),
+				),
+				array(
+					'methods'             => 'POST',
+					'permission_callback' => $write,
+					'callback'            => array( $this, 'update_knowledge' ),
+				),
+			)
+		);
+		register_rest_route(
+			self::NS,
 			'/build',
 			array(
 				'methods'             => 'POST',
@@ -264,7 +280,13 @@ class MCP_WPBakery_REST {
 			return $this->fail( 'Missing "content".' );
 		}
 		try {
-			return $this->ok( $this->core()->update_post( (int) $req['id'], $content, $validate, $page_css ) );
+			return $this->ok( $this->core()->update_post(
+				(int) $req['id'],
+				$content,
+				$validate,
+				$page_css,
+				! empty( $body['preview'] )
+			) );
 		} catch ( Throwable $e ) {
 			return $this->fail( $e->getMessage() );
 		}
@@ -289,7 +311,42 @@ class MCP_WPBakery_REST {
 
 	public function render_preview( $req ) {
 		try {
-			return $this->ok( $this->core()->render_preview( (int) $req['id'] ) );
+			return $this->ok( $this->core()->render_preview( (int) $req['id'], (bool) $req->get_param( 'include_html' ) ) );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	public function get_knowledge() {
+		try {
+			return $this->ok( ( new MCP_WPBakery_Site_Knowledge() )->snapshot() );
+		} catch ( Throwable $e ) {
+			return $this->fail( $e->getMessage() );
+		}
+	}
+
+	/** POST /knowledge — {note} | {tag, use_instead, note?} | {brand_tokens}. */
+	public function update_knowledge( $req ) {
+		$body = (array) $req->get_json_params();
+		$know = new MCP_WPBakery_Site_Knowledge();
+		try {
+			if ( ! empty( $body['brand_tokens'] ) ) {
+				if ( ! current_user_can( 'manage_options' ) ) {
+					return $this->fail( 'brand_tokens requires manage_options.', 403 );
+				}
+				return $this->ok( $know->set_brand_tokens( $body['brand_tokens'] ) );
+			}
+			if ( ! empty( $body['tag'] ) ) {
+				return $this->ok( $know->flag_broken_element(
+					(string) $body['tag'],
+					isset( $body['use_instead'] ) ? (string) $body['use_instead'] : '',
+					isset( $body['note'] ) ? (string) $body['note'] : ''
+				) );
+			}
+			if ( ! empty( $body['note'] ) ) {
+				return $this->ok( $know->add_note( (string) $body['note'], get_current_user_id() ) );
+			}
+			return $this->fail( 'Provide "note", "tag"+"use_instead", or "brand_tokens".' );
 		} catch ( Throwable $e ) {
 			return $this->fail( $e->getMessage() );
 		}

@@ -587,7 +587,7 @@ class MCP_WPBakery_Core {
 	 * @param bool   $validate throw on validation errors when true
 	 * @return array
 	 */
-	public function update_post( $post_id, $content, $validate = true, $page_css = null ) {
+	public function update_post( $post_id, $content, $validate = true, $page_css = null, $preview = false ) {
 		$post = get_post( $post_id );
 		if ( ! $post ) {
 			throw new Exception( "Post {$post_id} not found." );
@@ -627,7 +627,7 @@ class MCP_WPBakery_Core {
 
 		$purged = $this->purge_caches( $post_id );
 
-		return array(
+		$out = array(
 			'id'         => $post_id,
 			'updated'    => true,
 			'validation' => $validation,
@@ -636,6 +636,19 @@ class MCP_WPBakery_Core {
 			'caches_purged' => $purged,
 			'link'       => get_permalink( $post_id ),
 		);
+
+		// Collapse the write loop: return the rendered preview in the same
+		// round trip. The write has already succeeded, so a preview failure
+		// must not fail the call.
+		if ( $preview ) {
+			try {
+				$out['preview'] = $this->render_preview( $post_id );
+			} catch ( Exception $e ) {
+				$out['preview_error'] = $e->getMessage();
+			}
+		}
+
+		return $out;
 	}
 
 	/**
@@ -670,7 +683,7 @@ class MCP_WPBakery_Core {
 	 * (e.g. vc_btn on Impreza, which survives as literal "[vc_btn]" text), and
 	 * returns a tokenized public preview URL for screenshots.
 	 */
-	public function render_preview( $post_id ) {
+	public function render_preview( $post_id, $include_html = false ) {
 		$post = get_post( $post_id );
 		if ( ! $post ) {
 			throw new Exception( "Post {$post_id} not found." );
@@ -735,25 +748,119 @@ class MCP_WPBakery_Core {
 			}
 		}
 
-		// Keep the payload token-safe: return a capped excerpt, not the whole page.
-		$excerpt = $html;
-		$truncated = false;
-		if ( strlen( $excerpt ) > 12000 ) {
-			$excerpt   = substr( $excerpt, 0, 12000 );
-			$truncated = true;
-		}
-
-		return array(
+		$out = array(
 			'post_id'               => $post_id,
 			'status'                => $post->post_status,
 			'preview_url'           => $preview_url,
 			'render_source'         => $source,
 			'unrendered_shortcodes' => array_values( $unrendered ),
 			'html_bytes'            => strlen( $html ),
-			'rendered_excerpt'      => $excerpt,
-			'rendered_truncated'    => $truncated,
+			// Structural digest of the rendered content area — the theme's
+			// actual wrapper classes, so CSS can target real selectors
+			// without fetching the full page HTML.
+			'skeleton'              => $this->dom_skeleton( $html ),
 			'page_css'              => (string) get_post_meta( $post_id, '_wpb_post_custom_css', true ),
 		);
+
+		// Raw HTML is opt-in: the skeleton answers "how did the theme wrap
+		// my markup" at a fraction of the payload.
+		if ( $include_html ) {
+			$excerpt   = $html;
+			$truncated = false;
+			if ( strlen( $excerpt ) > 12000 ) {
+				$excerpt   = substr( $excerpt, 0, 12000 );
+				$truncated = true;
+			}
+			$out['rendered_excerpt']   = $excerpt;
+			$out['rendered_truncated'] = $truncated;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Indented one-line-per-element digest of the rendered content area:
+	 * tag + classes, image sources, and short text hints. This is what an
+	 * agent actually needs from a preview — the theme's real DOM — without
+	 * shipping hundreds of KB of page HTML.
+	 */
+	public function dom_skeleton( $html, $max_lines = 350 ) {
+		if ( '' === (string) $html || ! class_exists( 'DOMDocument' ) ) {
+			return array();
+		}
+		$doc  = new DOMDocument();
+		$prev = libxml_use_internal_errors( true );
+		$ok   = $doc->loadHTML( '<?xml encoding="utf-8"?>' . $html, LIBXML_NOWARNING | LIBXML_NOERROR );
+		libxml_clear_errors();
+		libxml_use_internal_errors( $prev );
+		if ( ! $ok ) {
+			return array();
+		}
+
+		// Prefer the theme's content wrapper (.l-main on us-core, <main>
+		// generally); fall back to <body>.
+		$xpath = new DOMXPath( $doc );
+		$root  = $xpath->query( "//*[contains(concat(' ', normalize-space(@class), ' '), ' l-main ')]" )->item( 0 );
+		if ( ! $root ) {
+			$root = $doc->getElementsByTagName( 'main' )->item( 0 );
+		}
+		if ( ! $root ) {
+			$root = $doc->getElementsByTagName( 'body' )->item( 0 );
+		}
+		if ( ! $root ) {
+			return array();
+		}
+
+		$lines = array();
+		$this->skeleton_walk( $root, 0, $lines, $max_lines );
+		if ( count( $lines ) >= $max_lines ) {
+			$lines[] = '[... skeleton truncated at ' . $max_lines . ' lines]';
+		}
+		return $lines;
+	}
+
+	private function skeleton_walk( $node, $depth, &$lines, $max_lines ) {
+		if ( count( $lines ) >= $max_lines ) {
+			return;
+		}
+		foreach ( $node->childNodes as $child ) {
+			if ( XML_ELEMENT_NODE !== $child->nodeType ) {
+				continue;
+			}
+			$tag = strtolower( $child->nodeName );
+			if ( in_array( $tag, array( 'script', 'style', 'noscript', 'svg', 'link', 'meta' ), true ) ) {
+				continue;
+			}
+
+			$class    = trim( (string) $child->getAttribute( 'class' ) );
+			$headline = in_array( $tag, array( 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'a', 'button', 'p', 'li' ), true );
+
+			if ( '' !== $class || $headline ) {
+				$line = str_repeat( '  ', $depth ) . $tag;
+				if ( '' !== $class ) {
+					$line .= '.' . implode( '.', preg_split( '/\s+/', $class ) );
+				}
+				if ( 'img' === $tag ) {
+					$src   = (string) $child->getAttribute( 'src' );
+					$src   = '' !== $src ? $src : (string) $child->getAttribute( 'data-src' );
+					$line .= ' [' . basename( (string) wp_parse_url( $src, PHP_URL_PATH ) )
+						. ( $child->getAttribute( 'loading' ) ? ' loading=' . $child->getAttribute( 'loading' ) : '' ) . ']';
+				} elseif ( $headline && 'li' !== $tag ) {
+					$text = trim( preg_replace( '/\s+/', ' ', (string) $child->textContent ) );
+					if ( '' !== $text ) {
+						$line .= ' "' . ( strlen( $text ) > 60 ? substr( $text, 0, 60 ) . '…' : $text ) . '"';
+					}
+				}
+				$lines[] = $line;
+				if ( count( $lines ) >= $max_lines ) {
+					return;
+				}
+				$this->skeleton_walk( $child, $depth + 1, $lines, $max_lines );
+			} else {
+				// Class-less structural wrapper: descend without emitting.
+				$this->skeleton_walk( $child, $depth, $lines, $max_lines );
+			}
+		}
 	}
 
 	/** Create a new page/post. */

@@ -35,7 +35,7 @@ The WordPress plugin **is itself a remote MCP server**. Three steps:
      --header "Authorization: Bearer wpbmcp_..."
    ```
 
-Next Claude Code session, all **36 `wpbakery_*` tools** are available and the
+Next Claude Code session, all **40 `wpbakery_*` tools** are available and the
 [build rules](WPBAKERY_BUILD_RULES.md) are auto-injected as session
 instructions. No Python, no `install.sh`, no Application Password.
 
@@ -129,7 +129,7 @@ standalone, auto-generated library plugin —
   `wpbakery_delete_custom_element` (refuses to delete an element still used in
   content). Create/update/delete require the `install_plugins` capability.
 
-## 🧰 MCP tools (36)
+## 🧰 MCP tools (40)
 
 **Builder** (parity in both modes; hub tools take a `client` slug, remote tools don't — the connection identifies the site):
 
@@ -142,9 +142,9 @@ standalone, auto-generated library plugin —
 | `wpbakery_get_page` / `wpbakery_get_structure` | Raw content + parsed tree (+ CSS). |
 | `wpbakery_build_element` | Build one validated, editable element (no DB write). |
 | `wpbakery_validate` | Validate content against `vc_map` before writing. |
-| `wpbakery_update_page` | The real write: validate → revision backup → write → CSS regen. |
+| `wpbakery_update_page` | The real write: validate → revision backup → write → CSS regen → **rendered preview digest in the same response** (v0.9.0; `preview=false` to skip). |
 | `wpbakery_set_page_css` / `wpbakery_append_page_css` | Page-scoped CSS iteration. |
-| `wpbakery_render_preview` | True front-end render: tokenized preview URL + unrendered-shortcode detection. |
+| `wpbakery_render_preview` | True front-end render: tokenized preview URL, unrendered-shortcode detection, and a **DOM skeleton digest** (the theme's real wrapper classes — style against these without fetching full page HTML; `include_html=true` for the raw excerpt). |
 | `wpbakery_create_page` / `wpbakery_set_status` | Draft-first page lifecycle. |
 | `wpbakery_set_post_meta` | Any post meta (Rank Math robots, etc.). |
 | `wpbakery_replace_in_content` | Surgical find/replace with expected-count safety. |
@@ -165,6 +165,15 @@ standalone, auto-generated library plugin —
 | `wpbakery_clone_page` | Duplicate a page (content + meta + page CSS) as a draft. |
 | `wpbakery_rest_request` / `wpbakery_list_rest_routes` | Full core+plugin REST surface, in-process, permission-checked. |
 | `wpbakery_create/update/get/delete/list_custom_element(s)` | Element Studio: author reusable custom elements into the standalone library plugin (see above). |
+
+**Site knowledge** (v0.9.0 — the site remembers, so no session re-pays the discovery tax):
+
+| Tool | Purpose |
+|------|---------|
+| `wpbakery_get_site_knowledge` | Theme + brand tokens (auto-extracted from `us_theme_options`/theme mods + logo) + known-broken elements + notes from prior sessions. A summary is auto-injected into every session's `initialize` instructions. |
+| `wpbakery_add_site_note` | Persist a lesson about this site for all future sessions. |
+| `wpbakery_flag_broken_element` | Record "this element doesn't render here — use X instead". Impreza/us-core sites are pre-seeded with the `vc_btn`/`vc_icon`/`vc_single_image` gotchas. |
+| `wpbakery_set_brand_tokens` | Override/extend brand tokens (`manage_options`). |
 
 ## Typical agent workflow
 

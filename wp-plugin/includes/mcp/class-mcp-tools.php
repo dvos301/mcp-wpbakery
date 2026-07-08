@@ -178,13 +178,14 @@ class MCP_WPBakery_MCP_Tools {
 		);
 		$this->add(
 			'wpbakery_update_page',
-			'Write new WPBakery shortcode content to a page: validates, saves a revision backup, writes, regenerates CSS, optionally sets page CSS.',
+			'Write new WPBakery shortcode content to a page: validates, saves a revision backup, writes, regenerates CSS, optionally sets page CSS. By default the response INCLUDES the rendered preview digest (preview_url, unrendered_shortcodes, skeleton) — no separate render_preview call needed. Set preview=false for bulk writes.',
 			$this->obj(
 				array(
 					'post_id'       => array( 'type' => 'integer' ),
 					'content'       => array( 'type' => 'string' ),
 					'skip_validate' => array( 'type' => 'boolean', 'default' => false ),
 					'page_css'      => array( 'type' => 'string' ),
+					'preview'       => array( 'type' => 'boolean', 'default' => true ),
 				),
 				array( 'post_id', 'content' )
 			),
@@ -193,7 +194,8 @@ class MCP_WPBakery_MCP_Tools {
 					isset( $args['post_id'] ) ? (int) $args['post_id'] : 0,
 					isset( $args['content'] ) ? (string) $args['content'] : '',
 					empty( $args['skip_validate'] ),
-					array_key_exists( 'page_css', $args ) ? (string) $args['page_css'] : null
+					array_key_exists( 'page_css', $args ) ? (string) $args['page_css'] : null,
+					! isset( $args['preview'] ) || false !== $args['preview']
 				);
 			}
 		);
@@ -227,10 +229,19 @@ class MCP_WPBakery_MCP_Tools {
 		);
 		$this->add(
 			'wpbakery_render_preview',
-			'Render a page through the real front-end (drafts included): tokenized preview_url, unrendered_shortcodes to fix, rendered excerpt. ALWAYS call after writing.',
-			$this->obj( array( 'post_id' => array( 'type' => 'integer' ) ), array( 'post_id' ) ),
+			'Render a page through the real front-end (drafts included): tokenized preview_url, unrendered_shortcodes to fix, and a skeleton digest of the theme\'s actual rendered DOM (tag.classes per line — target CSS at these). Set include_html=true only if you need the raw HTML excerpt. Note: wpbakery_update_page already returns this digest.',
+			$this->obj(
+				array(
+					'post_id'      => array( 'type' => 'integer' ),
+					'include_html' => array( 'type' => 'boolean', 'default' => false ),
+				),
+				array( 'post_id' )
+			),
 			function ( $args ) use ( $core ) {
-				return $core->render_preview( isset( $args['post_id'] ) ? (int) $args['post_id'] : 0 );
+				return $core->render_preview(
+					isset( $args['post_id'] ) ? (int) $args['post_id'] : 0,
+					! empty( $args['include_html'] )
+				);
 			}
 		);
 		$this->add(
@@ -379,6 +390,55 @@ class MCP_WPBakery_MCP_Tools {
 			),
 			array( $site, 'link_map' )
 		);
+		/* ---- persistent site knowledge (brand, gotchas, learned notes) ---- */
+
+		$know = new MCP_WPBakery_Site_Knowledge();
+
+		$this->add(
+			'wpbakery_get_site_knowledge',
+			'Everything learned about this site: theme, brand tokens (fonts/colours/logo, auto-extracted from theme options), elements known not to render, and notes from prior sessions. A summary is auto-injected at session start; call this for the full set.',
+			$this->obj(),
+			function ( $args ) use ( $know ) {
+				return $know->snapshot();
+			}
+		);
+		$this->add(
+			'wpbakery_add_site_note',
+			'Persist a lesson learned about THIS site for all future sessions (media naming quirks, layout conventions, cache behaviour...). Keep it one specific, actionable sentence.',
+			$this->obj( array( 'note' => array( 'type' => 'string' ) ), array( 'note' ) ),
+			function ( $args ) use ( $know ) {
+				return $know->add_note( isset( $args['note'] ) ? (string) $args['note'] : '', get_current_user_id() );
+			}
+		);
+		$this->add(
+			'wpbakery_flag_broken_element',
+			'Record that an element does not render on this theme, and what to use instead. Future sessions see it at initialize and skip the rediscovery.',
+			$this->obj(
+				array(
+					'tag'         => array( 'type' => 'string' ),
+					'use_instead' => array( 'type' => 'string' ),
+					'note'        => array( 'type' => 'string' ),
+				),
+				array( 'tag', 'use_instead' )
+			),
+			function ( $args ) use ( $know ) {
+				return $know->flag_broken_element(
+					isset( $args['tag'] ) ? (string) $args['tag'] : '',
+					isset( $args['use_instead'] ) ? (string) $args['use_instead'] : '',
+					isset( $args['note'] ) ? (string) $args['note'] : ''
+				);
+			}
+		);
+		$this->add(
+			'wpbakery_set_brand_tokens',
+			'Set/override brand tokens (colours, fonts, container width...) as name => value pairs. Overrides win over auto-detected theme options; an empty value deletes an override.',
+			$this->obj( array( 'tokens' => array( 'type' => 'object' ) ), array( 'tokens' ) ),
+			function ( $args ) use ( $know ) {
+				return $know->set_brand_tokens( isset( $args['tokens'] ) && is_array( $args['tokens'] ) ? $args['tokens'] : null );
+			},
+			'manage_options'
+		);
+
 		$this->add(
 			'wpbakery_site_status',
 			'Site health snapshot: WP/PHP/theme/plugin versions, pending updates, debug flags, WPBakery status.',
