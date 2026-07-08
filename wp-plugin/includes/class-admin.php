@@ -73,13 +73,28 @@ class MCP_WPBakery_Admin {
 		);
 	}
 
+	/**
+	 * True for offline dev environments (LocalWP, Valet, plain localhost),
+	 * where plain-HTTP traffic never leaves the machine. Mirrors WP core's
+	 * Application Passwords policy (is_ssl() OR local environment); the
+	 * hostname fallback covers dev sites missing WP_ENVIRONMENT_TYPE —
+	 * .local (mDNS) and .test (IETF) are unroutable on the public internet.
+	 */
+	private function is_local_dev() {
+		if ( 'local' === wp_get_environment_type() ) {
+			return true;
+		}
+		$host = (string) wp_parse_url( home_url(), PHP_URL_HOST );
+		return (bool) preg_match( '/(\.local|\.test)$|^(localhost|127\.0\.0\.1|::1)$/i', $host );
+	}
+
 	/** Issue / revoke bearer tokens for the direct (remote MCP) connection. */
 	private function handle_token_actions() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return null;
 		}
 		if ( ! empty( $_POST['mcp_issue_token'] ) && check_admin_referer( 'mcp_wpb_token' ) ) {
-			if ( ! is_ssl() ) {
+			if ( ! is_ssl() && ! $this->is_local_dev() ) {
 				return array( 'error' => 'HTTPS is required to issue a token — bearer tokens must never travel over plain HTTP.' );
 			}
 			$label  = sanitize_text_field( wp_unslash( isset( $_POST['mcp_token_label'] ) ? $_POST['mcp_token_label'] : '' ) );

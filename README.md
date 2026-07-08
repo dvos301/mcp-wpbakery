@@ -23,7 +23,10 @@ The WordPress plugin **is itself a remote MCP server**. Three steps:
    Updating? WordPress offers *"Replace current with uploaded"* — tokens and
    settings survive.
 2. **Generate a token** — wp-admin → **MCP WPBakery → Option A** → *Generate
-   token* (admin + HTTPS required; shown once).
+   token* (admin + HTTPS required; shown once). Local dev sites
+   (LocalWP `.local`, Valet `.test`, `localhost`, or
+   `WP_ENVIRONMENT_TYPE=local`) are exempt from the HTTPS requirement —
+   traffic there never leaves the machine.
 3. **Run the command it gives you** on the computer where Claude Code runs:
 
    ```bash
@@ -37,8 +40,9 @@ Next Claude Code session, all **36 `wpbakery_*` tools** are available and the
 instructions. No Python, no `install.sh`, no Application Password.
 
 **Security:** tokens are SHA-256-hashed at rest and shown once, issuance is
-HTTPS-only, calls are rate-limited (120/min/token) and audit-logged (the REST
-proxy logs the actual method + route). Revoke any token on the same admin page.
+HTTPS-only (except local dev environments — see above), calls are rate-limited
+(120/min/token) and audit-logged (the REST proxy logs the actual method +
+route). Revoke any token on the same admin page.
 
 ---
 
